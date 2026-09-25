@@ -14,7 +14,84 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      menu_items: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          is_available: boolean
+          name: string
+          price: number
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_available?: boolean
+          name: string
+          price?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_available?: boolean
+          name?: string
+          price?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      orders: {
+        Row: {
+          address: string | null
+          created_at: string
+          customer_name: string
+          delivery_date: string | null
+          id: string
+          items: Json
+          notes: string | null
+          phone: string
+          status: string
+          total: number
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          customer_name: string
+          delivery_date?: string | null
+          id?: string
+          items?: Json
+          notes?: string | null
+          phone: string
+          status?: string
+          total?: number
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          customer_name?: string
+          delivery_date?: string | null
+          id?: string
+          items?: Json
+          notes?: string | null
+          phone?: string
+          status?: string
+          total?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
