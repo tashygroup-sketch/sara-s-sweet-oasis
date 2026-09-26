@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCart } from "@/lib/cart";
 import { buildWhatsAppDraft } from "@/lib/whatsapp";
 import { createOrder } from "@/lib/shop.functions";
 
-const PHONE_RE = /^(091|092|093|094)\d{7}$/;
+const EMPTY_FORM = { name: "", phone: "", address: "", notes: "" };
 
 export function BookingDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { lines, total, clear } = useCart();
   const submit = useServerFn(createOrder);
-  const [form, setForm] = useState({ name: "", phone: "", address: "", notes: "" });
+  const navigate = useNavigate();
+  const [form, setForm] = useState(EMPTY_FORM);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draftUrl, setDraftUrl] = useState<string | null>(null);
@@ -17,6 +19,18 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
   const [locating, setLocating] = useState(false);
   const [locationUrl, setLocationUrl] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+
+  // Reset to a clean form every time the dialog opens, so placing one order doesn't leave
+  // the confirmation screen (or stale field values) showing the next time it's opened.
+  useEffect(() => {
+    if (!open) return;
+    setForm(EMPTY_FORM);
+    setError(null);
+    setDraftUrl(null);
+    setLocationUrl(null);
+    setLocationError(null);
+    setLocating(false);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -56,55 +70,53 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
     );
   }
 
-  function validate() {
-    if (!form.name.trim()) return "الرجاء إدخال الاسم";
-    if (!PHONE_RE.test(form.phone.trim())) {
-      return "رقم الهاتف يجب أن يتكون من 10 أرقام ويبدأ بـ 091 أو 092 أو 093 أو 094";
-    }
-    if (!form.address.trim()) return "الرجاء إدخال العنوان";
-    return null;
-  }
-
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const v = validate();
-    if (v) {
-      setError(v);
+    if (!form.name.trim() || !form.phone.trim() || !form.address.trim()) {
+      setError("الرجاء تعبئة الاسم ورقم الهاتف والعنوان");
       return;
     }
 
-    // Build + open the WhatsApp draft synchronously, in direct response to the click,
-    // so the browser doesn't block the popup once we `await` the save below.
-    const url = buildWhatsAppDraft(
-      {
-        name: form.name,
-        phone: form.phone,
-        address: form.address,
-        notes: form.notes,
-        ...(locationUrl ? { locationUrl } : {}),
-      },
-      lines,
-      total,
-    );
-    setDraftUrl(url);
-    window.open(url, "_blank");
-
     setBusy(true);
-    submit({
-      data: {
-        customer_name: form.name,
-        phone: form.phone,
-        address: form.address,
-        notes: form.notes,
-        ...(locationUrl ? { location_url: locationUrl } : {}),
-        items: lines.map((l) => ({ name: l.name, qty: l.qty, price: l.price })),
+    try {
+      const res = await submit({
+        data: {
+          customer_name: form.name,
+          phone: form.phone,
+          address: form.address,
+          notes: form.notes,
+          ...(locationUrl ? { location_url: locationUrl } : {}),
+          items: lines.map((l) => ({ name: l.name, qty: l.qty, price: l.price })),
+          total,
+        },
+      });
+
+      if (res.isAdmin) {
+        sessionStorage.setItem("sara-admin-phone", form.phone);
+        navigate({ to: "/admin" });
+        return;
+      }
+
+      const url = buildWhatsAppDraft(
+        {
+          name: form.name,
+          phone: form.phone,
+          address: form.address,
+          notes: form.notes,
+          ...(locationUrl ? { locationUrl } : {}),
+        },
+        lines,
         total,
-      },
-    })
-      .then(() => clear())
-      .catch(() => undefined)
-      .finally(() => setBusy(false));
+      );
+      setDraftUrl(url);
+      window.open(url, "_blank");
+      clear();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تعذّر إرسال الحجز");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -128,6 +140,10 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
         {draftUrl ? (
           <div className="mt-6 text-center">
             <p className="text-lg text-ink">تم إرسال طلبك 🌸</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              فتحنا لك واتساب في نافذة جديدة برسالة الطلب جاهزة — فقط اضغطي إرسال هناك. إذا لم تفتح
+              النافذة، اضغطي الزر أدناه.
+            </p>
             <a
               href={draftUrl}
               target="_blank"
