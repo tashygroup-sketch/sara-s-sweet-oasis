@@ -107,11 +107,8 @@ export function StoryPanel({ phone }: { phone: string }) {
         onSubmit={handleSave}
         className="space-y-3 rounded-3xl bg-card p-5 shadow-[var(--shadow-card)]"
       >
-        <h3 className="text-lg text-ink">نص قسم "قصتنا"</h3>
         <label className="block">
-          <span className="mb-1 block text-sm text-muted-foreground">
-            العنوان الصغير (بدلاً من "قصتنا")
-          </span>
+          <span className="mb-1 block text-sm text-muted-foreground">العنوان الصغير</span>
           <input
             value={form.story_label}
             onChange={(e) => setForm((f) => ({ ...f, story_label: e.target.value }))}
@@ -150,7 +147,7 @@ export function StoryPanel({ phone }: { phone: string }) {
 
       <div className="rounded-3xl bg-card p-5 shadow-[var(--shadow-card)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-lg text-ink">صور الإعلانات (يتم عرضها بتمرير أفقي)</h3>
+          <h3 className="text-lg text-ink">صور الإعلانات</h3>
           <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-primary">
             <span className="rounded-full border border-primary px-3 py-1.5">
               {uploading ? "جارِ الرفع..." : "+ إضافة صورة"}
