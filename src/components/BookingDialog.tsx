@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useCart } from "@/lib/cart";
 import { buildWhatsAppDraft } from "@/lib/whatsapp";
@@ -13,11 +13,19 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draftUrl, setDraftUrl] = useState<string | null>(null);
-  const [saveNote, setSaveNote] = useState<string | null>(null);
 
   const [locating, setLocating] = useState(false);
   const [locationUrl, setLocationUrl] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
 
   if (!open) return null;
 
@@ -83,7 +91,6 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
     window.open(url, "_blank");
 
     setBusy(true);
-    setSaveNote(null);
     submit({
       data: {
         customer_name: form.name,
@@ -96,13 +103,13 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
       },
     })
       .then(() => clear())
-      .catch(() => setSaveNote("تم فتح واتساب لإرسال طلبك، لكن تعذّر حفظ نسخة منه في النظام."))
+      .catch(() => undefined)
       .finally(() => setBusy(false));
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/40 backdrop-blur-sm sm:items-center">
-      <div className="animate-scale-in max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-card p-6 shadow-[var(--shadow-card)] sm:rounded-3xl">
+    <div className="fixed inset-0 z-40 flex items-end justify-center overflow-hidden bg-ink/40 backdrop-blur-sm sm:items-center">
+      <div className="animate-scale-in max-h-[92dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-3xl bg-card p-6 shadow-[var(--shadow-card)] sm:rounded-3xl">
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-2xl text-ink">احجز طلبك</h2>
@@ -121,11 +128,6 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
         {draftUrl ? (
           <div className="mt-6 text-center">
             <p className="text-lg text-ink">تم إرسال طلبك 🌸</p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              فتحنا لك واتساب في نافذة جديدة برسالة الطلب جاهزة — فقط اضغطي إرسال هناك. إذا لم تفتح
-              النافذة، اضغطي الزر أدناه.
-            </p>
-            {saveNote && <p className="mt-3 text-sm text-destructive">{saveNote}</p>}
             <a
               href={draftUrl}
               target="_blank"

@@ -79,6 +79,9 @@ export const createOrder = createServerFn({ method: "POST" })
         throw new Error("رقم الهاتف يجب أن يتكون من 10 أرقام ويبدأ بـ 091 أو 092 أو 093 أو 094");
       }
       if (!address) throw new Error("العنوان مطلوب");
+      if (!Array.isArray(input.items) || input.items.length === 0) {
+        throw new Error("اختر صنفًا واحدًا على الأقل من المنيو");
+      }
       return input;
     },
   )
