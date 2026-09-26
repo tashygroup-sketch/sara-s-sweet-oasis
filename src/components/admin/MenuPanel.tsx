@@ -11,6 +11,7 @@ import {
 import { fileToCompressedBase64 } from "@/lib/image";
 import { MenuItemForm, type MenuItemDraft } from "./MenuItemForm";
 import { Reveal } from "@/components/Reveal";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 export function MenuPanel({ phone }: { phone: string }) {
   const fetchMenu = useServerFn(getMenu);
@@ -82,8 +83,12 @@ export function MenuPanel({ phone }: { phone: string }) {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("حذف هذا الصنف نهائيًا؟")) return;
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+
+  async function confirmDelete() {
+    const id = deleteTarget;
+    setDeleteTarget(null);
+    if (!id) return;
     try {
       await remove({ data: { phone, id } });
       await load();
@@ -189,7 +194,7 @@ export function MenuPanel({ phone }: { phone: string }) {
                           تعديل
                         </button>
                         <button
-                          onClick={() => handleDelete(item.id)}
+                          onClick={() => setDeleteTarget(item.id)}
                           className="rounded-full border border-destructive px-3 py-1.5 text-sm text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground"
                         >
                           حذف
@@ -205,6 +210,13 @@ export function MenuPanel({ phone }: { phone: string }) {
       {items.length === 0 && (
         <p className="py-10 text-center text-muted-foreground">لا توجد أصناف بعد</p>
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="حذف هذا الصنف نهائيًا؟"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
