@@ -103,13 +103,15 @@ export const createOrder = createServerFn({ method: "POST" })
       items: data.items,
       total: data.total ?? 0,
     };
-    const { data: row, error } = await supabaseAdmin
-      .from("orders")
-      .insert(payload)
-      .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-    return { id: row.id as string, isAdmin: false as const };
+    let result = await supabaseAdmin.from("orders").insert(payload).select("id").single();
+    if (result.error?.code === "PGRST204") {
+      // The location_url column hasn't been migrated onto the live database yet —
+      // don't let a customer's order fail just because of that; save without it.
+      const { location_url: _locationUrl, ...withoutLocation } = payload;
+      result = await supabaseAdmin.from("orders").insert(withoutLocation).select("id").single();
+    }
+    if (result.error) throw new Error(result.error.message);
+    return { id: result.data.id as string, isAdmin: false as const };
   });
 
 export const listOrders = createServerFn({ method: "POST" })
