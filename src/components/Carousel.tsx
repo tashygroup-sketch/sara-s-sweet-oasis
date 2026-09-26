@@ -1,29 +1,34 @@
 import { useEffect, useRef, useState } from "react";
 
-function Slide({ src, onRatio }: { src: string; onRatio: (ratio: number) => void }) {
-  const imgRef = useRef<HTMLImageElement>(null);
-
-  // If the browser already has this image cached, it can load (and fire `complete`)
-  // before React finishes attaching the onLoad listener below, so that photo's real
-  // shape never gets reported. Checking `complete` right after mount catches that case;
-  // onLoad still covers photos that are genuinely still downloading.
+// Detects a photo's own height/width ratio independently of the rendered <img> tag,
+// so a photo already sitting in the browser's cache can't finish loading before we're
+// listening for it (a real gap in the previous approach, which used the rendered
+// image's own onLoad event and could miss cached photos entirely).
+function useImageRatio(src: string, onRatio: (ratio: number) => void) {
   useEffect(() => {
-    const img = imgRef.current;
-    if (img && img.complete && img.naturalWidth > 0) {
-      onRatio(img.naturalHeight / img.naturalWidth);
+    let cancelled = false;
+    const probe = new Image();
+    probe.onload = () => {
+      if (!cancelled && probe.naturalWidth > 0) {
+        onRatio(probe.naturalHeight / probe.naturalWidth);
+      }
+    };
+    probe.src = src;
+    if (probe.complete && probe.naturalWidth > 0) {
+      onRatio(probe.naturalHeight / probe.naturalWidth);
     }
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
+}
 
+function Slide({ src, onRatio }: { src: string; onRatio: (ratio: number) => void }) {
+  useImageRatio(src, onRatio);
   return (
     <div className="w-full shrink-0 snap-center">
-      <img
-        ref={imgRef}
-        src={src}
-        alt=""
-        onLoad={(e) => onRatio(e.currentTarget.naturalHeight / e.currentTarget.naturalWidth)}
-        className="h-full w-full object-contain"
-      />
+      <img src={src} alt="" className="h-full w-full object-contain" />
     </div>
   );
 }
