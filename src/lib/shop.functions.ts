@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 
-export const ADMIN_PHONE_DIGITS = "0915756638";
 export const WHATSAPP_NUMBER = "218915756638";
 
 export type MenuItem = {
@@ -28,15 +27,6 @@ export type OrderRow = {
   created_at: string;
 };
 
-function normalizePhone(raw: string) {
-  const digits = (raw ?? "").replace(/\D/g, "");
-  return digits.replace(/^00218/, "0").replace(/^218/, "0");
-}
-
-export function isAdminPhone(raw: string) {
-  return normalizePhone(raw) === ADMIN_PHONE_DIGITS;
-}
-
 function publicClient() {
   const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
   return createClient(process.env["SUPABASE_URL"]!, key, {
@@ -44,7 +34,8 @@ function publicClient() {
     global: {
       fetch: (input, init) => {
         const h = new Headers(init?.headers);
-        if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) h.delete("Authorization");
+        if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`)
+          h.delete("Authorization");
         h.set("apikey", key);
         return fetch(input, { ...init, headers: h });
       },
@@ -53,6 +44,7 @@ function publicClient() {
 }
 
 async function adminClient(phone: string) {
+  const { isAdminPhone } = await import("@/lib/admin.server");
   if (!isAdminPhone(phone)) throw new Error("غير مصرح");
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   return supabaseAdmin;
@@ -68,20 +60,27 @@ export const getMenu = createServerFn({ method: "GET" }).handler(async () => {
 });
 
 export const createOrder = createServerFn({ method: "POST" })
-  .inputValidator((input: {
-    customer_name: string;
-    phone: string;
-    address?: string;
-    delivery_date?: string;
-    notes?: string;
-    items: { name: string; qty: number; price: number }[];
-    total: number;
-  }) => {
-    if (!input.customer_name?.trim()) throw new Error("الاسم مطلوب");
-    if (!input.phone?.trim()) throw new Error("رقم الهاتف مطلوب");
-    return input;
-  })
+  .inputValidator(
+    (input: {
+      customer_name: string;
+      phone: string;
+      address?: string;
+      delivery_date?: string;
+      notes?: string;
+      items: { name: string; qty: number; price: number }[];
+      total: number;
+    }) => {
+      if (!input.customer_name?.trim()) throw new Error("الاسم مطلوب");
+      if (!input.phone?.trim()) throw new Error("رقم الهاتف مطلوب");
+      return input;
+    },
+  )
   .handler(async ({ data }) => {
+    const { isAdminPhone } = await import("@/lib/admin.server");
+    if (isAdminPhone(data.phone)) {
+      // Admin trigger: don't log this as a real customer order.
+      return { id: "admin", isAdmin: true as const };
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin
       .from("orders")
@@ -97,7 +96,7 @@ export const createOrder = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
-    return { id: row.id as string, isAdmin: isAdminPhone(data.phone) };
+    return { id: row.id as string, isAdmin: false as const };
   });
 
 export const listOrders = createServerFn({ method: "POST" })
@@ -113,23 +112,34 @@ export const listOrders = createServerFn({ method: "POST" })
     return (rows ?? []) as OrderRow[];
   });
 
+export const updateOrderStatus = createServerFn({ method: "POST" })
+  .inputValidator((input: { phone: string; id: string; status: string }) => input)
+  .handler(async ({ data }) => {
+    const db = await adminClient(data.phone);
+    const { error } = await db.from("orders").update({ status: data.status }).eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 export const saveMenuItem = createServerFn({ method: "POST" })
-  .inputValidator((input: {
-    phone: string;
-    item: {
-      id?: string;
-      name: string;
-      description?: string;
-      price: number;
-      image_url?: string;
-      category: string;
-      sort_order?: number;
-      is_available?: boolean;
-    };
-  }) => {
-    if (!input.item?.name?.trim()) throw new Error("اسم الصنف مطلوب");
-    return input;
-  })
+  .inputValidator(
+    (input: {
+      phone: string;
+      item: {
+        id?: string;
+        name: string;
+        description?: string;
+        price: number;
+        image_url?: string;
+        category: string;
+        sort_order?: number;
+        is_available?: boolean;
+      };
+    }) => {
+      if (!input.item?.name?.trim()) throw new Error("اسم الصنف مطلوب");
+      return input;
+    },
+  )
   .handler(async ({ data }) => {
     const db = await adminClient(data.phone);
     const payload = {
@@ -156,4 +166,27 @@ export const deleteMenuItem = createServerFn({ method: "POST" })
     const { error } = await db.from("menu_items").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+export const uploadMenuImage = createServerFn({ method: "POST" })
+  .inputValidator(
+    (input: { phone: string; filename: string; contentType: string; dataBase64: string }) => {
+      if (!input.dataBase64?.trim()) throw new Error("لا توجد صورة");
+      return input;
+    },
+  )
+  .handler(async ({ data }) => {
+    const db = await adminClient(data.phone);
+    const bytes = Buffer.from(data.dataBase64, "base64");
+    if (bytes.byteLength > 6 * 1024 * 1024)
+      throw new Error("حجم الصورة كبير جدًا (الحد الأقصى 6 ميجابايت)");
+    const ext =
+      (data.filename.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+    const path = `${crypto.randomUUID()}.${ext}`;
+    const { error } = await db.storage
+      .from("menu-photos")
+      .upload(path, bytes, { contentType: data.contentType || "image/jpeg", upsert: false });
+    if (error) throw new Error(error.message);
+    const { data: pub } = db.storage.from("menu-photos").getPublicUrl(path);
+    return { url: pub.publicUrl };
   });
