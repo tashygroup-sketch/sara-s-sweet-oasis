@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { listOrders } from "@/lib/shop.functions";
 import { OrdersPanel } from "@/components/admin/OrdersPanel";
 import { MenuPanel } from "@/components/admin/MenuPanel";
+import { StoryPanel } from "@/components/admin/StoryPanel";
 import logoAsset from "@/assets/logo.jpg.asset.json";
 
 const STORAGE_KEY = "sara-admin-phone";
@@ -23,7 +24,7 @@ function AdminPage() {
 
   const [phone, setPhone] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
-  const [tab, setTab] = useState<"orders" | "menu">("orders");
+  const [tab, setTab] = useState<"orders" | "menu" | "story">("orders");
   const [gateInput, setGateInput] = useState("");
   const [gateError, setGateError] = useState<string | null>(null);
   const [gateBusy, setGateBusy] = useState(false);
@@ -151,9 +152,19 @@ function AdminPage() {
           >
             المنيو
           </button>
+          <button
+            onClick={() => setTab("story")}
+            className={`rounded-full px-5 py-2 text-sm transition-colors ${
+              tab === "story" ? "bg-card text-ink shadow" : "text-muted-foreground"
+            }`}
+          >
+            القصة والإعلانات
+          </button>
         </div>
 
-        {tab === "orders" ? <OrdersPanel phone={phone} /> : <MenuPanel phone={phone} />}
+        {tab === "orders" && <OrdersPanel phone={phone} />}
+        {tab === "menu" && <MenuPanel phone={phone} />}
+        {tab === "story" && <StoryPanel phone={phone} />}
       </main>
     </div>
   );

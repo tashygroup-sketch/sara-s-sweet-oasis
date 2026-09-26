@@ -1,19 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { getMenu } from "@/lib/shop.functions";
+import { getMenu, getStorySection } from "@/lib/shop.functions";
 import { LogoIntro } from "@/components/LogoIntro";
 import { Reveal } from "@/components/Reveal";
 import { BookingDialog } from "@/components/BookingDialog";
 import { useCart } from "@/lib/cart";
 import logoAsset from "@/assets/logo.jpg.asset.json";
-import cakeAsset from "@/assets/cake.jpg.asset.json";
-import macaronAsset from "@/assets/macaron.jpg.asset.json";
 
 const menuQuery = queryOptions({ queryKey: ["menu"], queryFn: () => getMenu() });
+const storyQuery = queryOptions({ queryKey: ["story"], queryFn: () => getStorySection() });
 
 export const Route = createFileRoute("/")({
-  loader: ({ context }) => context.queryClient.ensureQueryData(menuQuery),
+  loader: ({ context }) =>
+    Promise.all([
+      context.queryClient.ensureQueryData(menuQuery),
+      context.queryClient.ensureQueryData(storyQuery),
+    ]),
   head: () => ({
     meta: [
       { title: "مركز سارة للحلويات | حلويات فاخرة" },
@@ -34,6 +37,7 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const { data: menu } = useSuspenseQuery(menuQuery);
+  const { data: story } = useSuspenseQuery(storyQuery);
   const { lines, add, setQty, count, total } = useCart();
   const [booking, setBooking] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
@@ -165,39 +169,32 @@ function Home() {
       {/* story */}
       <section className="mx-auto max-w-4xl px-4 py-16">
         <Reveal>
-          <p className="text-center text-sm tracking-[0.35em] text-primary">قصتنا</p>
+          <p className="text-center text-sm tracking-[0.35em] text-primary">{story.story_label}</p>
         </Reveal>
         <Reveal delay={120}>
-          <h2 className="mt-4 text-center text-3xl text-ink">لمسة سارة في كل قطعة</h2>
+          <h2 className="mt-4 text-center text-3xl text-ink">{story.story_title}</h2>
         </Reveal>
         <Reveal delay={240}>
           <p className="mx-auto mt-5 max-w-xl text-center leading-8 text-muted-foreground">
-            من مطبخ صغير إلى مركز متكامل للحلويات، نختار أجود المكوّنات ونُزيّن كل طبق بعناية لتصل
-            إليك قطعة تليق بفرحتك.
+            {story.story_text}
           </p>
         </Reveal>
-        <div className="mt-12 grid grid-cols-2 gap-4">
-          <Reveal variant="side">
-            <img
-              src={cakeAsset.url}
-              alt="كيكة مناسبات وردية"
-              loading="lazy"
-              width={1024}
-              height={1024}
-              className="h-56 w-full rounded-3xl object-cover shadow-[var(--shadow-card)] sm:h-72"
-            />
-          </Reveal>
-          <Reveal variant="side" delay={180}>
-            <img
-              src={macaronAsset.url}
-              alt="ماكارون وردي"
-              loading="lazy"
-              width={1024}
-              height={1024}
-              className="mt-8 h-56 w-full rounded-3xl object-cover shadow-[var(--shadow-card)] sm:h-72"
-            />
-          </Reveal>
-        </div>
+        {story.images.length > 0 && (
+          <div className="scrollbar-none -mx-4 mt-12 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2">
+            {story.images.map((img, i) => (
+              <Reveal key={img.id} variant="side" delay={i * 120}>
+                <img
+                  src={img.image_url}
+                  alt=""
+                  loading="lazy"
+                  width={1024}
+                  height={1024}
+                  className="h-56 w-64 shrink-0 snap-start rounded-3xl object-cover shadow-[var(--shadow-card)] sm:h-72 sm:w-80"
+                />
+              </Reveal>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* menu */}
