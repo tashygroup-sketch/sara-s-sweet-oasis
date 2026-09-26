@@ -132,22 +132,10 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
         {draftUrl ? (
           <div className="mt-6 text-center">
             <p className="text-lg text-ink">تم إرسال طلبك 🌸</p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              فتحنا لك واتساب في نافذة جديدة برسالة الطلب جاهزة — فقط اضغطي إرسال هناك. إذا لم تفتح
-              النافذة، اضغطي الزر أدناه.
-            </p>
-            <a
-              href={draftUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-5 inline-flex w-full items-center justify-center rounded-full px-6 py-3 font-medium text-primary-foreground"
-              style={{ backgroundImage: "var(--gradient-pink)" }}
-            >
-              فتح واتساب لإرسال الطلب
-            </a>
             <button
               onClick={onClose}
-              className="mt-3 w-full rounded-full border border-border px-6 py-3 text-ink"
+              className="mt-5 w-full rounded-full px-6 py-3 font-medium text-primary-foreground"
+              style={{ backgroundImage: "var(--gradient-pink)" }}
             >
               إغلاق
             </button>
