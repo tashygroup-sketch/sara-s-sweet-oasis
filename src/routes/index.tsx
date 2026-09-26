@@ -37,9 +37,31 @@ function Home() {
   const { lines, add, setQty, count, total } = useCart();
   const [booking, setBooking] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const [justAdded, setJustAdded] = useState<string | null>(null);
 
   const available = menu.filter((m) => m.is_available);
   const categories = [...new Set(available.map((m) => m.category))];
+
+  function categoryAnchor(cat: string) {
+    return `cat-${cat.replace(/\s+/g, "-")}`;
+  }
+
+  function scrollToCategory(cat: string) {
+    document
+      .getElementById(categoryAnchor(cat))
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function handleAdd(item: (typeof available)[number]) {
+    add({
+      id: item.id,
+      name: item.name,
+      price: Number(item.price),
+      image_url: item.image_url,
+    });
+    setJustAdded(item.id);
+    window.setTimeout(() => setJustAdded((cur) => (cur === item.id ? null : cur)), 1100);
+  }
 
   return (
     <div className="relative overflow-x-hidden">
@@ -65,7 +87,10 @@ function Home() {
             >
               السلة
               {count > 0 && (
-                <span className="absolute -top-2 -left-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+                <span
+                  key={count}
+                  className="cart-bump absolute -top-2 -left-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground"
+                >
                   {count}
                 </span>
               )}
@@ -163,12 +188,26 @@ function Home() {
           <h2 className="mt-4 text-center text-3xl text-ink">اختاري ما يحلو لكِ</h2>
         </Reveal>
 
+        {categories.length > 1 && (
+          <div className="scrollbar-none -mx-4 mt-8 flex gap-2 overflow-x-auto px-4 pb-2">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => scrollToCategory(cat)}
+                className="shrink-0 rounded-full border border-primary/40 bg-card px-5 py-2 text-sm text-ink shadow-[var(--shadow-card)] transition-colors hover:bg-primary hover:text-primary-foreground"
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
+
         {categories.map((cat, ci) => (
-          <div key={cat} className="mt-12">
+          <div key={cat} id={categoryAnchor(cat)} className="mt-12 scroll-mt-24">
             <Reveal>
               <h3 className="text-xl text-ink">{cat}</h3>
             </Reveal>
-            <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-5 grid grid-cols-1 gap-5">
               {available
                 .filter((m) => m.category === cat)
                 .map((item, i) => (
@@ -194,17 +233,14 @@ function Home() {
                             {Number(item.price).toFixed(2)} د.ل
                           </span>
                           <button
-                            onClick={() =>
-                              add({
-                                id: item.id,
-                                name: item.name,
-                                price: Number(item.price),
-                                image_url: item.image_url,
-                              })
-                            }
-                            className="rounded-full border border-primary px-4 py-2 text-sm text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+                            onClick={() => handleAdd(item)}
+                            className={`rounded-full border px-4 py-2 text-sm transition-colors ${
+                              justAdded === item.id
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                            }`}
                           >
-                            أضف للسلة
+                            {justAdded === item.id ? "✓ أضيفت للسلة" : "أضف للسلة"}
                           </button>
                         </div>
                       </div>
@@ -243,6 +279,31 @@ function Home() {
           >
             احجز
           </button>
+        </Reveal>
+
+        <Reveal delay={220}>
+          <div className="mx-auto mt-10 max-w-sm rounded-3xl bg-card/70 p-5 text-sm text-muted-foreground">
+            <p className="text-xs tracking-[0.3em] text-primary">الموقع</p>
+            <p className="mt-2 text-ink">
+              بنغازي، شارع المركبات — بعد نادي الأصايل، قبل كورفا يمين
+            </p>
+            <a
+              href="https://maps.app.goo.gl/mSBKM2FGUfMctEpw8?g_st=ac"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-flex items-center gap-1 text-primary hover:underline"
+            >
+              📍 افتح الموقع في خرائط جوجل
+            </a>
+            <p className="mt-4">
+              <a href="tel:0913411424" dir="ltr" className="text-ink hover:text-primary">
+                0913411424
+              </a>
+            </p>
+          </div>
+        </Reveal>
+
+        <Reveal delay={320}>
           <p className="mt-8 text-xs text-muted-foreground">© مركز سارة للحلويات</p>
         </Reveal>
       </footer>
