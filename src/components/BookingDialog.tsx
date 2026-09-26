@@ -73,11 +73,6 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!form.name.trim() || !form.phone.trim() || !form.address.trim()) {
-      setError("الرجاء تعبئة الاسم ورقم الهاتف والعنوان");
-      return;
-    }
-
     setBusy(true);
     try {
       const res = await submit({
@@ -162,7 +157,7 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="mt-6 space-y-3">
-            <Input label="الاسم الكامل" required {...field("name")} />
+            <Input label="الاسم الكامل" {...field("name")} />
             <Input
               label="رقم الهاتف"
               required
@@ -172,7 +167,7 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
               maxLength={10}
               {...field("phone")}
             />
-            <Input label="العنوان" required {...field("address")} />
+            <Input label="العنوان" {...field("address")} />
 
             <div>
               <button
