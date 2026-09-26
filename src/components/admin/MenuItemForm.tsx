@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { MenuItem } from "@/lib/shop.functions";
 import { CropDialog, type CroppedImage } from "./CropDialog";
+import { CategorySelect } from "./CategorySelect";
 
 export type MenuItemDraft = {
   id?: string;
@@ -8,6 +9,7 @@ export type MenuItemDraft = {
   description: string;
   price: string;
   category: string;
+  // Set automatically: end of the chosen category (not shown to the admin).
   sort_order: string;
   image_url: string;
   image_ratio: number | null;
@@ -16,8 +18,6 @@ export type MenuItemDraft = {
   // "" = not tracked (unlimited)
   stock: string;
 };
-
-const NEW_CATEGORY = "__new__";
 
 const empty: MenuItemDraft = {
   name: "",
@@ -31,6 +31,15 @@ const empty: MenuItemDraft = {
   extra_image_ratios: [],
   stock: "",
 };
+
+// Phone keyboards set to Arabic type ٠١٢٣٤٥٦٧٨٩ (or ۰۱۲...); convert them to 0-9 and drop
+// anything that isn't a digit.
+function toDigits(raw: string) {
+  return raw
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u06f0-\u06f9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/\D/g, "");
+}
 
 export function MenuItemForm({
   initial,
@@ -66,46 +75,45 @@ export function MenuItemForm({
         }
       : empty,
   );
-  // Only auto-suggest a sort order for brand-new items; editing an existing item
-  // shouldn't silently renumber it just because the category dropdown re-fires.
-  const isNewItem = !initial;
   const [addingCategory, setAddingCategory] = useState(categories.length === 0);
   const [newCategoryName, setNewCategoryName] = useState("");
-  // Keep our own copy of the dropdown's options so a category typed in this same
-  // session shows up as selected immediately, instead of falling back to the
-  // placeholder because it isn't in the (now-stale) categories prop yet.
+  const [categoryMissing, setCategoryMissing] = useState(false);
+  // Our own copy of the options, so a category created here shows as selected immediately.
   const [availableCategories, setAvailableCategories] = useState(categories);
   const [uploadingMain, setUploadingMain] = useState(false);
   const [uploadingExtra, setUploadingExtra] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  // The photo waiting to be cropped, and whether it becomes the main photo or an extra one.
   const [pendingCrop, setPendingCrop] = useState<{ file: File; target: "main" | "extra" } | null>(
     null,
   );
 
-  function handleCategoryChange(value: string) {
-    if (value === NEW_CATEGORY) {
-      setAddingCategory(true);
-      return;
-    }
-    setDraft((d) => ({
-      ...d,
-      category: value,
-      sort_order: isNewItem ? String(nextSortOrderFor(value)) : d.sort_order,
-    }));
+  // The display order is no longer a field: keep an item's place if it stays in its original
+  // category, otherwise put it at the end of the category it's moved into.
+  function sortOrderFor(category: string) {
+    return initial && category === initial.category
+      ? String(initial.sort_order)
+      : String(nextSortOrderFor(category));
+  }
+
+  function chooseCategory(value: string) {
+    setCategoryMissing(false);
+    setDraft((d) => ({ ...d, category: value, sort_order: sortOrderFor(value) }));
   }
 
   function confirmNewCategory() {
     const name = newCategoryName.trim();
     if (!name) return;
     setAvailableCategories((prev) => (prev.includes(name) ? prev : [...prev, name]));
-    setDraft((d) => ({
-      ...d,
-      category: name,
-      sort_order: isNewItem ? String(nextSortOrderFor(name)) : d.sort_order,
-    }));
+    chooseCategory(name);
     setAddingCategory(false);
     setNewCategoryName("");
+  }
+
+  function stepStock(delta: number) {
+    setDraft((d) => {
+      if (d.stock === "") return delta > 0 ? { ...d, stock: "1" } : d;
+      return { ...d, stock: String(Math.max(0, Number(d.stock) + delta)) };
+    });
   }
 
   function pickFile(target: "main" | "extra") {
@@ -149,11 +157,16 @@ export function MenuItemForm({
   }
 
   const uploading = uploadingMain || uploadingExtra;
+  const stockNumber = draft.stock === "" ? null : Number(draft.stock);
 
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
+        if (!draft.category) {
+          setCategoryMissing(true);
+          return;
+        }
         onSubmit(draft);
       }}
       className="space-y-4 rounded-3xl bg-card p-5 shadow-[var(--shadow-card)]"
@@ -174,7 +187,8 @@ export function MenuItemForm({
           onChange={(v) => setDraft((d) => ({ ...d, price: v }))}
         />
 
-        <label className="block">
+        {/* div, not label: a label forwards taps to the first button inside it */}
+        <div>
           <span className="mb-1 block text-sm text-muted-foreground">التصنيف</span>
           {addingCategory ? (
             <div className="flex gap-2">
@@ -182,59 +196,91 @@ export function MenuItemForm({
                 autoFocus
                 value={newCategoryName}
                 onChange={(e) => setNewCategoryName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    confirmNewCategory();
+                  }
+                }}
                 placeholder="اسم التصنيف الجديد"
-                className="w-full rounded-2xl border border-border bg-background px-4 py-3 outline-none focus:border-primary"
+                className="w-full min-w-0 rounded-2xl border border-primary bg-background px-4 py-3 outline-none"
               />
               <button
                 type="button"
                 onClick={confirmNewCategory}
-                className="shrink-0 rounded-2xl border border-primary px-4 text-sm text-primary"
+                className="shrink-0 rounded-2xl px-4 text-sm font-medium text-primary-foreground"
+                style={{ backgroundImage: "var(--gradient-pink)" }}
               >
                 إضافة
               </button>
+              {availableCategories.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddingCategory(false);
+                    setNewCategoryName("");
+                  }}
+                  className="shrink-0 rounded-2xl border border-border px-3 text-sm text-ink"
+                >
+                  إلغاء
+                </button>
+              )}
             </div>
           ) : (
-            <select
-              required
+            <CategorySelect
               value={draft.category}
-              onChange={(e) => handleCategoryChange(e.target.value)}
-              className="w-full rounded-2xl border border-border bg-background px-4 py-3 outline-none focus:border-primary"
-            >
-              <option value="" disabled>
-                اختر تصنيفًا
-              </option>
-              {availableCategories.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-              <option value={NEW_CATEGORY}>+ إضافة تصنيف جديد</option>
-            </select>
+              options={availableCategories}
+              onChange={chooseCategory}
+              onAddNew={() => setAddingCategory(true)}
+              invalid={categoryMissing}
+            />
           )}
-        </label>
+          {categoryMissing && <p className="mt-1 text-xs text-destructive">اختاري تصنيفًا</p>}
+        </div>
 
-        <Field
-          label="ترتيب العرض داخل التصنيف"
-          type="number"
-          value={draft.sort_order}
-          onChange={(v) => setDraft((d) => ({ ...d, sort_order: v }))}
-        />
-        <label className="block sm:col-span-2">
+        <div>
           <span className="mb-1 block text-sm text-muted-foreground">الكمية المتوفرة</span>
-          <input
-            type="number"
-            min={0}
-            step={1}
-            inputMode="numeric"
-            placeholder="اتركيه فارغًا إذا كانت الكمية غير محدودة"
-            value={draft.stock}
-            onChange={(e) => setDraft((d) => ({ ...d, stock: e.target.value }))}
-            className="w-full rounded-2xl border border-border bg-background px-4 py-3 outline-none focus:border-primary"
-          />
-          <span className="mt-1 block text-xs text-muted-foreground">
-            عند الوصول إلى 0 يظهر الصنف كـ«نفذت الكمية» للزبائن حتى تعيدي تعبئته.
-          </span>
-        </label>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => stepStock(-1)}
+              disabled={stockNumber === null || stockNumber <= 0}
+              aria-label="إنقاص الكمية"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-muted text-xl text-ink transition-opacity disabled:opacity-40"
+            >
+              −
+            </button>
+            <input
+              inputMode="numeric"
+              dir="ltr"
+              value={draft.stock}
+              placeholder="غير محدودة"
+              onChange={(e) => setDraft((d) => ({ ...d, stock: toDigits(e.target.value) }))}
+              aria-label="الكمية المتوفرة"
+              className={`h-12 w-full min-w-0 rounded-2xl border bg-background px-2 text-center text-lg outline-none placeholder:text-sm placeholder:text-muted-foreground focus:border-primary ${
+                stockNumber === 0 ? "border-destructive text-destructive" : "border-border text-ink"
+              }`}
+            />
+            <button
+              type="button"
+              onClick={() => stepStock(1)}
+              aria-label="زيادة الكمية"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-xl text-primary-foreground"
+              style={{ backgroundImage: "var(--gradient-pink)" }}
+            >
+              +
+            </button>
+          </div>
+          {stockNumber !== null && (
+            <button
+              type="button"
+              onClick={() => setDraft((d) => ({ ...d, stock: "" }))}
+              className="mt-1 text-xs text-muted-foreground underline"
+            >
+              جعلها غير محدودة
+            </button>
+          )}
+        </div>
       </div>
 
       <label className="block">
@@ -247,49 +293,34 @@ export function MenuItemForm({
         />
       </label>
 
-      <div className="flex flex-wrap items-center gap-4">
-        {draft.image_url ? (
-          <img src={draft.image_url} alt="" className="h-20 w-20 rounded-2xl object-cover" />
-        ) : (
-          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-muted text-xs text-muted-foreground">
-            بدون صورة
-          </div>
-        )}
-        <div className="min-w-[220px] flex-1 space-y-2">
-          <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-primary">
-            <span className="rounded-full border border-primary px-3 py-1.5">
-              {uploadingMain ? "جارِ الرفع..." : "📷 اختيار صورة من المعرض"}
-            </span>
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={pickFile("main")}
-              disabled={uploading}
-            />
-          </label>
-        </div>
-      </div>
-
       <div>
-        <span className="mb-2 block text-sm text-muted-foreground">
-          صور إضافية لنفس الصنف (اختياري)
-        </span>
+        {/* main photo first, extra photos beside it, then the add-extra tile */}
         <div className="scrollbar-none flex gap-2 overflow-x-auto pb-1">
+          {draft.image_url ? (
+            <img
+              src={draft.image_url}
+              alt=""
+              className="h-24 w-[72px] shrink-0 rounded-xl border-2 border-primary object-cover"
+            />
+          ) : (
+            <div className="flex h-24 w-[72px] shrink-0 items-center justify-center rounded-xl border-2 border-primary/40 bg-muted text-center text-[11px] text-muted-foreground">
+              {uploadingMain ? "..." : "بدون صورة"}
+            </div>
+          )}
           {draft.extra_images.map((url, idx) => (
-            <div key={url} className="relative shrink-0">
-              <img src={url} alt="" className="h-16 w-16 rounded-xl object-cover" />
+            <div key={url} className="relative h-24 w-[72px] shrink-0">
+              <img src={url} alt="" className="h-full w-full rounded-xl object-cover" />
               <button
                 type="button"
                 onClick={() => removeExtraImage(idx)}
-                className="absolute -top-1.5 -left-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink/70 text-xs text-white"
+                className="absolute top-1 left-1 flex h-6 w-6 items-center justify-center rounded-full bg-ink/70 text-xs text-white"
                 aria-label="إزالة الصورة"
               >
                 ✕
               </button>
             </div>
           ))}
-          <label className="inline-flex h-16 w-16 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-dashed border-primary/50 text-xs text-primary">
+          <label className="flex h-24 w-[72px] shrink-0 cursor-pointer items-center justify-center rounded-xl border border-dashed border-primary/60 text-xs text-primary">
             {uploadingExtra ? "..." : "+ صورة"}
             <input
               type="file"
@@ -300,6 +331,19 @@ export function MenuItemForm({
             />
           </label>
         </div>
+
+        <label className="mt-3 inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-primary">
+          <span className="rounded-full border border-primary px-3 py-1.5">
+            {uploadingMain ? "جارِ الرفع..." : "📷 اختيار صورة من المعرض"}
+          </span>
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={pickFile("main")}
+            disabled={uploading}
+          />
+        </label>
         {uploadError && <p className="mt-1 text-sm text-destructive">{uploadError}</p>}
       </div>
 
