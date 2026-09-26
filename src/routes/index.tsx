@@ -216,17 +216,19 @@ function Home() {
         )}
 
         {categories.length > 1 && (
-          <div className="scrollbar-none -mx-4 mt-8 flex gap-2 overflow-x-auto px-4 pb-2">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => scrollToCategory(cat)}
-                className="shrink-0 rounded-full border border-primary/40 bg-card px-5 py-2 text-sm text-ink shadow-[var(--shadow-card)] transition-colors hover:bg-primary hover:text-primary-foreground"
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
+          <Reveal>
+            <div className="scrollbar-none -mx-4 mt-8 flex gap-2 overflow-x-auto px-4 pb-2">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => scrollToCategory(cat)}
+                  className="shrink-0 rounded-full border border-primary/40 bg-card px-5 py-2 text-sm text-ink shadow-[var(--shadow-card)] transition-colors hover:bg-primary hover:text-primary-foreground"
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </Reveal>
         )}
 
         {categories.map((cat, ci) => (
@@ -240,15 +242,29 @@ function Home() {
                 .map((item, i) => (
                   <Reveal key={item.id} delay={i * 110 + ci * 40} variant="up">
                     <article className="group overflow-hidden rounded-3xl bg-card shadow-[var(--shadow-card)]">
-                      {item.image_url && (
-                        <img
-                          src={item.image_url}
-                          alt={item.name}
-                          loading="lazy"
-                          width={1024}
-                          height={1024}
-                          className="h-48 w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                        />
+                      {item.extra_images.length > 0 ? (
+                        <div className="scrollbar-none flex snap-x snap-mandatory gap-1 overflow-x-auto bg-muted">
+                          {[item.image_url, ...item.extra_images]
+                            .filter((src): src is string => Boolean(src))
+                            .map((src, idx) => (
+                              <img
+                                key={idx}
+                                src={src}
+                                alt={item.name}
+                                loading="lazy"
+                                className="h-56 w-full shrink-0 snap-start object-contain"
+                              />
+                            ))}
+                        </div>
+                      ) : (
+                        item.image_url && (
+                          <img
+                            src={item.image_url}
+                            alt={item.name}
+                            loading="lazy"
+                            className="h-auto w-full bg-muted object-contain transition-transform duration-700 group-hover:scale-105"
+                          />
+                        )
                       )}
                       <div className="p-5">
                         <h4 className="text-lg text-ink">{item.name}</h4>
@@ -297,7 +313,7 @@ function Home() {
         <Reveal delay={120}>
           <h2 className="mt-6 text-2xl text-ink">اطلب الآن</h2>
           <p className="mt-2 text-muted-foreground" dir="ltr">
-            0915756638
+            0913411424
           </p>
           <button
             onClick={handleBookingRequest}
