@@ -19,7 +19,8 @@ export const Route = createFileRoute("/")({
       { title: "مركز سارة للحلويات | حلويات فاخرة" },
       {
         name: "description",
-        content: "مركز سارة للحلويات — كيك المناسبات، كب كيك، ماكارون وحلويات عربية. احجز طلبك بسهولة عبر واتساب.",
+        content:
+          "مركز سارة للحلويات — كيك المناسبات، كب كيك، ماكارون وحلويات عربية. احجز طلبك بسهولة عبر واتساب.",
       },
       { property: "og:title", content: "مركز سارة للحلويات" },
       {
@@ -53,7 +54,7 @@ function Home() {
               alt="شعار مركز سارة للحلويات"
               width={48}
               height={48}
-              className="scallop h-11 w-11 rounded-full object-cover"
+              className="h-11 w-11 object-contain"
             />
             <span className="text-lg text-ink">مركز سارة للحلويات</span>
           </div>
@@ -82,7 +83,10 @@ function Home() {
 
       {/* hero */}
       <section className="relative isolate overflow-hidden px-4 pt-16 pb-24 text-center">
-        <div className="pointer-events-none absolute inset-0 -z-10" style={{ background: "var(--gradient-petal)" }} />
+        <div
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{ background: "var(--gradient-petal)" }}
+        />
         <div className="pointer-events-none absolute -top-16 -right-10 -z-10 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
         <Reveal variant="zoom">
           <img
@@ -90,7 +94,7 @@ function Home() {
             alt="مركز سارة للحلويات"
             width={260}
             height={260}
-            className="scallop float-slow mx-auto h-40 w-40 rounded-full object-cover shadow-[var(--shadow-soft)] sm:h-52 sm:w-52"
+            className="float-slow mx-auto h-40 w-40 object-contain drop-shadow-[0_18px_40px_rgba(0,0,0,0.2)] sm:h-52 sm:w-52"
           />
         </Reveal>
         <Reveal delay={150}>
@@ -122,8 +126,8 @@ function Home() {
         </Reveal>
         <Reveal delay={240}>
           <p className="mx-auto mt-5 max-w-xl text-center leading-8 text-muted-foreground">
-            من مطبخ صغير إلى مركز متكامل للحلويات، نختار أجود المكوّنات ونُزيّن كل طبق بعناية لتصل إليك قطعة
-            تليق بفرحتك.
+            من مطبخ صغير إلى مركز متكامل للحلويات، نختار أجود المكوّنات ونُزيّن كل طبق بعناية لتصل
+            إليك قطعة تليق بفرحتك.
           </p>
         </Reveal>
         <div className="mt-12 grid grid-cols-2 gap-4">
@@ -186,7 +190,9 @@ function Home() {
                           <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
                         )}
                         <div className="mt-4 flex items-center justify-between">
-                          <span className="font-bold text-primary">{Number(item.price).toFixed(2)} د.ل</span>
+                          <span className="font-bold text-primary">
+                            {Number(item.price).toFixed(2)} د.ل
+                          </span>
                           <button
                             onClick={() =>
                               add({
@@ -211,7 +217,10 @@ function Home() {
       </section>
 
       {/* contact */}
-      <footer className="mt-10 px-4 py-16 text-center" style={{ background: "var(--gradient-petal)" }}>
+      <footer
+        className="mt-10 px-4 py-16 text-center"
+        style={{ background: "var(--gradient-petal)" }}
+      >
         <Reveal variant="zoom">
           <img
             src={logoAsset.url}
@@ -219,7 +228,7 @@ function Home() {
             loading="lazy"
             width={120}
             height={120}
-            className="scallop mx-auto h-24 w-24 rounded-full object-cover"
+            className="mx-auto h-24 w-24 object-contain"
           />
         </Reveal>
         <Reveal delay={120}>
@@ -244,7 +253,10 @@ function Home() {
           <div className="animate-scale-in w-full max-w-md rounded-t-3xl bg-card p-6 sm:rounded-3xl">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl text-ink">سلة الطلبات</h2>
-              <button onClick={() => setCartOpen(false)} className="rounded-full px-3 py-1 hover:bg-muted">
+              <button
+                onClick={() => setCartOpen(false)}
+                className="rounded-full px-3 py-1 hover:bg-muted"
+              >
                 ✕
               </button>
             </div>
@@ -256,18 +268,28 @@ function Home() {
                   {lines.map((l) => (
                     <div key={l.id} className="flex items-center gap-3">
                       {l.image_url && (
-                        <img src={l.image_url} alt={l.name} className="h-14 w-14 rounded-2xl object-cover" />
+                        <img
+                          src={l.image_url}
+                          alt={l.name}
+                          className="h-14 w-14 rounded-2xl object-cover"
+                        />
                       )}
                       <div className="flex-1">
                         <p className="text-ink">{l.name}</p>
                         <p className="text-sm text-muted-foreground">{l.price.toFixed(2)} د.ل</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button onClick={() => setQty(l.id, l.qty - 1)} className="h-8 w-8 rounded-full bg-muted">
+                        <button
+                          onClick={() => setQty(l.id, l.qty - 1)}
+                          className="h-8 w-8 rounded-full bg-muted"
+                        >
                           −
                         </button>
                         <span>{l.qty}</span>
-                        <button onClick={() => setQty(l.id, l.qty + 1)} className="h-8 w-8 rounded-full bg-muted">
+                        <button
+                          onClick={() => setQty(l.id, l.qty + 1)}
+                          className="h-8 w-8 rounded-full bg-muted"
+                        >
                           +
                         </button>
                       </div>
