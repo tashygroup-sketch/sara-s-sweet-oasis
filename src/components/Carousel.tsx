@@ -1,4 +1,32 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+function Slide({ src, onRatio }: { src: string; onRatio: (ratio: number) => void }) {
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // If the browser already has this image cached, it can load (and fire `complete`)
+  // before React finishes attaching the onLoad listener below, so that photo's real
+  // shape never gets reported. Checking `complete` right after mount catches that case;
+  // onLoad still covers photos that are genuinely still downloading.
+  useEffect(() => {
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth > 0) {
+      onRatio(img.naturalHeight / img.naturalWidth);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src]);
+
+  return (
+    <div className="w-full shrink-0 snap-center">
+      <img
+        ref={imgRef}
+        src={src}
+        alt=""
+        onLoad={(e) => onRatio(e.currentTarget.naturalHeight / e.currentTarget.naturalWidth)}
+        className="h-full w-full object-contain"
+      />
+    </div>
+  );
+}
 
 export function Carousel({ images }: { images: string[] }) {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -19,13 +47,6 @@ export function Carousel({ images }: { images: string[] }) {
     el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
   }
 
-  function handleLoad(i: number, e: React.SyntheticEvent<HTMLImageElement>) {
-    const img = e.currentTarget;
-    if (img.naturalWidth > 0) {
-      setRatios((r) => ({ ...r, [i]: img.naturalHeight / img.naturalWidth }));
-    }
-  }
-
   if (images.length === 0) return null;
 
   const ratio = ratios[active] ?? 0.8;
@@ -39,14 +60,7 @@ export function Carousel({ images }: { images: string[] }) {
         className="scrollbar-none flex snap-x snap-mandatory overflow-x-auto transition-[aspect-ratio] duration-300 ease-out"
       >
         {images.map((src, i) => (
-          <div key={i} className="w-full shrink-0 snap-center">
-            <img
-              src={src}
-              alt=""
-              onLoad={(e) => handleLoad(i, e)}
-              className="h-full w-full object-contain"
-            />
-          </div>
+          <Slide key={src} src={src} onRatio={(r) => setRatios((prev) => ({ ...prev, [i]: r }))} />
         ))}
       </div>
       {images.length > 1 && (
