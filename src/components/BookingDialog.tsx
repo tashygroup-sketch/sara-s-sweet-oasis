@@ -1,18 +1,23 @@
 import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCart } from "@/lib/cart";
 import { buildWhatsAppDraft } from "@/lib/whatsapp";
 import { createOrder } from "@/lib/shop.functions";
 
+const PHONE_RE = /^(091|092|093|094)\d{7}$/;
+
 export function BookingDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { lines, total, clear } = useCart();
   const submit = useServerFn(createOrder);
-  const navigate = useNavigate();
-  const [form, setForm] = useState({ name: "", phone: "", address: "", date: "", notes: "" });
+  const [form, setForm] = useState({ name: "", phone: "", address: "", notes: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draftUrl, setDraftUrl] = useState<string | null>(null);
+  const [saveNote, setSaveNote] = useState<string | null>(null);
+
+  const [locating, setLocating] = useState(false);
+  const [locationUrl, setLocationUrl] = useState<string | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   if (!open) return null;
 
@@ -22,39 +27,77 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
       setForm((f) => ({ ...f, [k]: e.target.value })),
   });
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!form.name.trim() || !form.phone.trim()) {
-      setError("الرجاء إدخال الاسم ورقم الهاتف");
+  function shareLocation() {
+    if (!("geolocation" in navigator)) {
+      setLocationError("المتصفح لا يدعم تحديد الموقع");
       return;
     }
-    setBusy(true);
-    try {
-      const res = await submit({
-        data: {
-          customer_name: form.name,
-          phone: form.phone,
-          address: form.address,
-          delivery_date: form.date,
-          notes: form.notes,
-          items: lines.map((l) => ({ name: l.name, qty: l.qty, price: l.price })),
-          total,
-        },
-      });
-      const url = buildWhatsAppDraft(form, lines, total);
-      setDraftUrl(url);
-      if (res.isAdmin) {
-        sessionStorage.setItem("sara-admin-phone", form.phone);
-        navigate({ to: "/admin" });
-        return;
-      }
-      clear();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "تعذّر إرسال الحجز");
-    } finally {
-      setBusy(false);
+    setLocating(true);
+    setLocationError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setLocationUrl(`https://www.google.com/maps?q=${latitude},${longitude}`);
+        setLocating(false);
+      },
+      () => {
+        setLocationError("تعذّر الحصول على الموقع، تأكدي من السماح بالوصول للموقع من المتصفح");
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  }
+
+  function validate() {
+    if (!form.name.trim()) return "الرجاء إدخال الاسم";
+    if (!PHONE_RE.test(form.phone.trim())) {
+      return "رقم الهاتف يجب أن يتكون من 10 أرقام ويبدأ بـ 091 أو 092 أو 093 أو 094";
     }
+    if (!form.address.trim()) return "الرجاء إدخال العنوان";
+    return null;
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    const v = validate();
+    if (v) {
+      setError(v);
+      return;
+    }
+
+    // Build + open the WhatsApp draft synchronously, in direct response to the click,
+    // so the browser doesn't block the popup once we `await` the save below.
+    const url = buildWhatsAppDraft(
+      {
+        name: form.name,
+        phone: form.phone,
+        address: form.address,
+        notes: form.notes,
+        ...(locationUrl ? { locationUrl } : {}),
+      },
+      lines,
+      total,
+    );
+    setDraftUrl(url);
+    window.open(url, "_blank");
+
+    setBusy(true);
+    setSaveNote(null);
+    submit({
+      data: {
+        customer_name: form.name,
+        phone: form.phone,
+        address: form.address,
+        notes: form.notes,
+        ...(locationUrl ? { location_url: locationUrl } : {}),
+        items: lines.map((l) => ({ name: l.name, qty: l.qty, price: l.price })),
+        total,
+      },
+    })
+      .then(() => clear())
+      .catch(() => setSaveNote("تم فتح واتساب لإرسال طلبك، لكن تعذّر حفظ نسخة منه في النظام."))
+      .finally(() => setBusy(false));
   }
 
   return (
@@ -63,19 +106,26 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-2xl text-ink">احجز طلبك</h2>
-            <p className="mt-1 text-sm text-muted-foreground">نستلم طلبك ونرسله مباشرة إلى واتساب المركز</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              نستلم طلبك ونرسله مباشرة إلى واتساب المركز
+            </p>
           </div>
-          <button onClick={onClose} className="rounded-full px-3 py-1 text-muted-foreground hover:bg-muted">
+          <button
+            onClick={onClose}
+            className="rounded-full px-3 py-1 text-muted-foreground hover:bg-muted"
+          >
             ✕
           </button>
         </div>
 
         {draftUrl ? (
           <div className="mt-6 text-center">
-            <p className="text-lg text-ink">تم تسجيل حجزك بنجاح 🌸</p>
+            <p className="text-lg text-ink">تم إرسال طلبك 🌸</p>
             <p className="mt-2 text-sm text-muted-foreground">
-              اضغط الزر لفتح رسالة واتساب الجاهزة وإرسالها إلى المركز.
+              فتحنا لك واتساب في نافذة جديدة برسالة الطلب جاهزة — فقط اضغطي إرسال هناك. إذا لم تفتح
+              النافذة، اضغطي الزر أدناه.
             </p>
+            {saveNote && <p className="mt-3 text-sm text-destructive">{saveNote}</p>}
             <a
               href={draftUrl}
               target="_blank"
@@ -83,20 +133,56 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
               className="mt-5 inline-flex w-full items-center justify-center rounded-full px-6 py-3 font-medium text-primary-foreground"
               style={{ backgroundImage: "var(--gradient-pink)" }}
             >
-              إرسال الطلب عبر واتساب
+              فتح واتساب لإرسال الطلب
             </a>
-            <button onClick={onClose} className="mt-3 w-full rounded-full border border-border px-6 py-3 text-ink">
+            <button
+              onClick={onClose}
+              className="mt-3 w-full rounded-full border border-border px-6 py-3 text-ink"
+            >
               إغلاق
             </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="mt-6 space-y-3">
             <Input label="الاسم الكامل" required {...field("name")} />
-            <Input label="رقم الهاتف" required inputMode="tel" {...field("phone")} />
-            <Input label="العنوان" {...field("address")} />
-            <Input label="تاريخ الاستلام" placeholder="مثال: 12 رمضان أو 2026-10-01" {...field("date")} />
+            <Input
+              label="رقم الهاتف"
+              required
+              inputMode="tel"
+              dir="ltr"
+              placeholder="0912345678"
+              maxLength={10}
+              {...field("phone")}
+            />
+            <Input label="العنوان" required {...field("address")} />
+
+            <div>
+              <button
+                type="button"
+                onClick={shareLocation}
+                disabled={locating}
+                className="w-full rounded-2xl border border-dashed border-primary/50 px-4 py-3 text-sm text-primary transition-colors hover:bg-accent disabled:opacity-60"
+              >
+                {locating
+                  ? "جارِ تحديد موقعك..."
+                  : locationUrl
+                    ? "✓ تم تحديد موقعك — اضغطي لإعادة التحديد"
+                    : "📍 مشاركة موقعي على الخريطة (اختياري)"}
+              </button>
+              {locationError && <p className="mt-1 text-sm text-destructive">{locationError}</p>}
+              {locationUrl && (
+                <button
+                  type="button"
+                  onClick={() => setLocationUrl(null)}
+                  className="mt-1 text-xs text-muted-foreground underline"
+                >
+                  إزالة الموقع
+                </button>
+              )}
+            </div>
+
             <label className="block">
-              <span className="mb-1 block text-sm text-muted-foreground">ملاحظات</span>
+              <span className="mb-1 block text-sm text-muted-foreground">ملاحظات (اختياري)</span>
               <textarea
                 rows={3}
                 {...field("notes")}
@@ -129,7 +215,7 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
               className="w-full rounded-full px-6 py-3 font-medium text-primary-foreground disabled:opacity-60"
               style={{ backgroundImage: "var(--gradient-pink)" }}
             >
-              {busy ? "جاري الإرسال..." : "تأكيد الحجز"}
+              {busy ? "جاري الإرسال..." : "تأكيد الحجز عبر واتساب"}
             </button>
           </form>
         )}
@@ -138,7 +224,10 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
   );
 }
 
-function Input({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+function Input({
+  label,
+  ...props
+}: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="block">
       <span className="mb-1 block text-sm text-muted-foreground">{label}</span>
