@@ -52,7 +52,7 @@ export function MenuPanel({ phone }: { phone: string }) {
     const res = await upload({
       data: { phone, filename: file.name, contentType, dataBase64: base64 },
     });
-    return res.url;
+    return { url: res.url, ratio: res.ratio };
   }
 
   async function handleSubmit(draft: MenuItemDraft) {
@@ -67,7 +67,9 @@ export function MenuPanel({ phone }: { phone: string }) {
             description: draft.description,
             price: Number(draft.price) || 0,
             image_url: draft.image_url,
+            image_ratio: draft.image_ratio,
             extra_images: draft.extra_images,
+            extra_image_ratios: draft.extra_image_ratios,
             category: draft.category || "حلويات",
             sort_order: Number(draft.sort_order) || 0,
           },

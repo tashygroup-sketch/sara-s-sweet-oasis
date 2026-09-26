@@ -78,7 +78,7 @@ export function StoryPanel({ phone }: { phone: string }) {
       const res = await upload({
         data: { phone, filename: file.name, contentType, dataBase64: base64 },
       });
-      await addImage({ data: { phone, image_url: res.url } });
+      await addImage({ data: { phone, image_url: res.url, ratio: res.ratio } });
       await load();
       refreshPublicStory();
     } catch (err) {

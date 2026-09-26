@@ -9,7 +9,9 @@ export type MenuItemDraft = {
   category: string;
   sort_order: string;
   image_url: string;
+  image_ratio: number | null;
   extra_images: string[];
+  extra_image_ratios: number[];
 };
 
 const NEW_CATEGORY = "__new__";
@@ -21,7 +23,9 @@ const empty: MenuItemDraft = {
   category: "",
   sort_order: "0",
   image_url: "",
+  image_ratio: null,
   extra_images: [],
+  extra_image_ratios: [],
 };
 
 export function MenuItemForm({
@@ -38,7 +42,7 @@ export function MenuItemForm({
   busy: boolean;
   onCancel: () => void;
   onSubmit: (draft: MenuItemDraft) => void;
-  onUploadImage: (file: File) => Promise<string>;
+  onUploadImage: (file: File) => Promise<{ url: string; ratio: number | null }>;
   nextSortOrderFor: (category: string) => number;
 }) {
   const [draft, setDraft] = useState<MenuItemDraft>(
@@ -51,7 +55,9 @@ export function MenuItemForm({
           category: initial.category,
           sort_order: String(initial.sort_order),
           image_url: initial.image_url ?? "",
+          image_ratio: initial.image_ratio ?? null,
           extra_images: initial.extra_images ?? [],
+          extra_image_ratios: initial.extra_image_ratios ?? [],
         }
       : empty,
   );
@@ -100,8 +106,8 @@ export function MenuItemForm({
     setUploadingMain(true);
     setUploadError(null);
     try {
-      const url = await onUploadImage(file);
-      setDraft((d) => ({ ...d, image_url: url }));
+      const { url, ratio } = await onUploadImage(file);
+      setDraft((d) => ({ ...d, image_url: url, image_ratio: ratio }));
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "تعذّر رفع الصورة");
     } finally {
@@ -116,8 +122,12 @@ export function MenuItemForm({
     setUploadingExtra(true);
     setUploadError(null);
     try {
-      const url = await onUploadImage(file);
-      setDraft((d) => ({ ...d, extra_images: [...d.extra_images, url] }));
+      const { url, ratio } = await onUploadImage(file);
+      setDraft((d) => ({
+        ...d,
+        extra_images: [...d.extra_images, url],
+        extra_image_ratios: [...d.extra_image_ratios, ratio ?? 0.8],
+      }));
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "تعذّر رفع الصورة");
     } finally {
@@ -125,8 +135,12 @@ export function MenuItemForm({
     }
   }
 
-  function removeExtraImage(url: string) {
-    setDraft((d) => ({ ...d, extra_images: d.extra_images.filter((u) => u !== url) }));
+  function removeExtraImage(index: number) {
+    setDraft((d) => ({
+      ...d,
+      extra_images: d.extra_images.filter((_, i) => i !== index),
+      extra_image_ratios: d.extra_image_ratios.filter((_, i) => i !== index),
+    }));
   }
 
   const uploading = uploadingMain || uploadingExtra;
@@ -241,12 +255,12 @@ export function MenuItemForm({
           صور إضافية لنفس الصنف (اختياري)
         </span>
         <div className="scrollbar-none flex gap-2 overflow-x-auto pb-1">
-          {draft.extra_images.map((url) => (
+          {draft.extra_images.map((url, idx) => (
             <div key={url} className="relative shrink-0">
               <img src={url} alt="" className="h-16 w-16 rounded-xl object-cover" />
               <button
                 type="button"
-                onClick={() => removeExtraImage(url)}
+                onClick={() => removeExtraImage(idx)}
                 className="absolute -top-1.5 -left-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink/70 text-xs text-white"
                 aria-label="إزالة الصورة"
               >
