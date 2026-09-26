@@ -172,6 +172,13 @@ export function StoryPanel({ phone }: { phone: string }) {
           {data.images.map((img) => (
             <div key={img.id} className="relative shrink-0">
               <img src={img.image_url} alt="" className="h-32 w-40 rounded-2xl object-cover" />
+              <span
+                className={`absolute bottom-1.5 right-1.5 rounded-full px-2 py-0.5 text-[10px] text-white ${
+                  img.ratio ? "bg-primary" : "bg-destructive"
+                }`}
+              >
+                {img.ratio ? "✓ الشكل معروف" : "⚠ غير معروف"}
+              </span>
               <button
                 onClick={() => setDeleteTarget(img.id)}
                 className="absolute top-1.5 left-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-ink/70 text-sm text-white"
