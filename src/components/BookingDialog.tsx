@@ -120,9 +120,6 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-2xl text-ink">احجز طلبك</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              نستلم طلبك ونرسله مباشرة إلى واتساب المركز
-            </p>
           </div>
           <button
             onClick={onClose}
@@ -228,7 +225,7 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
               className="w-full rounded-full px-6 py-3 font-medium text-primary-foreground disabled:opacity-60"
               style={{ backgroundImage: "var(--gradient-pink)" }}
             >
-              {busy ? "جاري الإرسال..." : "تأكيد الحجز عبر واتساب"}
+              {busy ? "جاري الإرسال..." : "احجز"}
             </button>
           </form>
         )}
