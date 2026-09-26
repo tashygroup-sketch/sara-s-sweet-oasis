@@ -1,14 +1,11 @@
 import { useRef, useState } from "react";
 
-export function Carousel({
-  images,
-  heightClassName = "h-64",
-}: {
-  images: string[];
-  heightClassName?: string;
-}) {
+export function Carousel({ images }: { images: string[] }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
+  // Each photo's own height/width ratio, captured once it loads, so the frame can match
+  // that exact photo instead of cropping it or leaving empty space around it.
+  const [ratios, setRatios] = useState<Record<number, number>>({});
 
   function handleScroll() {
     const el = trackRef.current;
@@ -22,18 +19,33 @@ export function Carousel({
     el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
   }
 
+  function handleLoad(i: number, e: React.SyntheticEvent<HTMLImageElement>) {
+    const img = e.currentTarget;
+    if (img.naturalWidth > 0) {
+      setRatios((r) => ({ ...r, [i]: img.naturalHeight / img.naturalWidth }));
+    }
+  }
+
   if (images.length === 0) return null;
+
+  const ratio = ratios[active] ?? 0.8;
 
   return (
     <div>
       <div
         ref={trackRef}
         onScroll={handleScroll}
-        className={`scrollbar-none flex snap-x snap-mandatory overflow-x-auto bg-muted ${heightClassName}`}
+        style={{ aspectRatio: `1 / ${ratio}` }}
+        className="scrollbar-none flex snap-x snap-mandatory overflow-x-auto transition-[aspect-ratio] duration-300 ease-out"
       >
         {images.map((src, i) => (
-          <div key={i} className="flex w-full shrink-0 snap-center items-center justify-center">
-            <img src={src} alt="" loading="lazy" className="h-full w-full object-contain" />
+          <div key={i} className="w-full shrink-0 snap-center">
+            <img
+              src={src}
+              alt=""
+              onLoad={(e) => handleLoad(i, e)}
+              className="h-full w-full object-contain"
+            />
           </div>
         ))}
       </div>
