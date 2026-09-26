@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
 export const WHATSAPP_NUMBER = "218915756638";
 
@@ -79,22 +80,28 @@ export const createOrder = createServerFn({ method: "POST" })
         throw new Error("رقم الهاتف يجب أن يتكون من 10 أرقام ويبدأ بـ 091 أو 092 أو 093 أو 094");
       }
       if (!address) throw new Error("العنوان مطلوب");
+      if (!Array.isArray(input.items) || input.items.length === 0) {
+        throw new Error("اختر صنفًا واحدًا على الأقل من المنيو");
+      }
       return input;
     },
   )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const payload: Database["public"]["Tables"]["orders"]["Insert"] = {
+      customer_name: data.customer_name.trim().slice(0, 120),
+      phone: data.phone.trim().slice(0, 40),
+      address: data.address.trim().slice(0, 300),
+      notes: data.notes?.trim().slice(0, 600) ?? null,
+      items: data.items ?? [],
+      total: data.total ?? 0,
+    };
+    Object.assign(payload, {
+      location_url: data.location_url?.trim().slice(0, 300) ?? null,
+    });
     const { data: row, error } = await supabaseAdmin
       .from("orders")
-      .insert({
-        customer_name: data.customer_name.trim().slice(0, 120),
-        phone: data.phone.trim().slice(0, 40),
-        address: data.address.trim().slice(0, 300),
-        notes: data.notes?.trim().slice(0, 600) ?? null,
-        location_url: data.location_url?.trim().slice(0, 300) ?? null,
-        items: data.items ?? [],
-        total: data.total ?? 0,
-      })
+      .insert(payload)
       .select("id")
       .single();
     if (error) throw new Error(error.message);

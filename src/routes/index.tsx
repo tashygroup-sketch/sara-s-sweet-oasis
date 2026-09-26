@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getMenu } from "@/lib/shop.functions";
 import { LogoIntro } from "@/components/LogoIntro";
 import { Reveal } from "@/components/Reveal";
@@ -38,6 +38,7 @@ function Home() {
   const [booking, setBooking] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [justAdded, setJustAdded] = useState<string | null>(null);
+  const [menuPrompt, setMenuPrompt] = useState(false);
 
   const available = menu.filter((m) => m.is_available);
   const categories = [...new Set(available.map((m) => m.category))];
@@ -62,6 +63,26 @@ function Home() {
     setJustAdded(item.id);
     window.setTimeout(() => setJustAdded((cur) => (cur === item.id ? null : cur)), 1100);
   }
+
+  function handleBookingRequest() {
+    if (lines.length > 0) {
+      setCartOpen(true);
+      return;
+    }
+
+    setMenuPrompt(true);
+    document.getElementById("menu")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(() => setMenuPrompt(false), 3500);
+  }
+
+  useEffect(() => {
+    if (!cartOpen && !booking) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [cartOpen, booking]);
 
   return (
     <div className="relative overflow-x-hidden">
@@ -96,7 +117,7 @@ function Home() {
               )}
             </button>
             <button
-              onClick={() => setBooking(true)}
+              onClick={handleBookingRequest}
               className="rounded-full px-5 py-2 text-sm font-medium text-primary-foreground"
               style={{ backgroundImage: "var(--gradient-pink)" }}
             >
@@ -132,7 +153,7 @@ function Home() {
         </Reveal>
         <Reveal delay={420}>
           <button
-            onClick={() => setBooking(true)}
+            onClick={handleBookingRequest}
             className="mt-8 rounded-full px-10 py-4 text-lg font-medium text-primary-foreground shadow-[var(--shadow-soft)]"
             style={{ backgroundImage: "var(--gradient-pink)" }}
           >
@@ -187,6 +208,15 @@ function Home() {
         <Reveal delay={120}>
           <h2 className="mt-4 text-center text-3xl text-ink">اختاري ما يحلو لكِ</h2>
         </Reveal>
+
+        {menuPrompt && (
+          <p
+            role="status"
+            className="animate-fade-in mx-auto mt-5 w-fit rounded-xl border border-primary/30 bg-accent px-5 py-3 text-center font-medium text-accent-foreground shadow-[var(--shadow-card)]"
+          >
+            أختر من المنيو أولاً
+          </p>
+        )}
 
         {categories.length > 1 && (
           <div className="scrollbar-none -mx-4 mt-8 flex gap-2 overflow-x-auto px-4 pb-2">
@@ -273,7 +303,7 @@ function Home() {
             0915756638
           </p>
           <button
-            onClick={() => setBooking(true)}
+            onClick={handleBookingRequest}
             className="mt-6 rounded-full px-8 py-3 font-medium text-primary-foreground"
             style={{ backgroundImage: "var(--gradient-pink)" }}
           >
@@ -291,7 +321,7 @@ function Home() {
               href="https://maps.app.goo.gl/mSBKM2FGUfMctEpw8?g_st=ac"
               target="_blank"
               rel="noreferrer"
-              className="mt-3 inline-flex items-center gap-1 text-primary hover:underline"
+              className="mt-4 inline-flex items-center gap-2 rounded-xl border border-primary bg-card px-5 py-3 font-bold text-primary shadow-[var(--shadow-card)] transition-colors hover:bg-primary hover:text-primary-foreground"
             >
               📍 افتح الموقع في خرائط جوجل
             </a>
@@ -310,8 +340,8 @@ function Home() {
 
       {/* cart drawer */}
       {cartOpen && (
-        <div className="fixed inset-0 z-40 flex items-end bg-ink/40 backdrop-blur-sm sm:items-center sm:justify-center">
-          <div className="animate-scale-in w-full max-w-md rounded-t-3xl bg-card p-6 sm:rounded-3xl">
+        <div className="fixed inset-0 z-40 flex items-end overflow-hidden bg-ink/40 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="animate-scale-in max-h-[92dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-3xl bg-card p-6 sm:rounded-3xl">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl text-ink">سلة الطلبات</h2>
               <button
