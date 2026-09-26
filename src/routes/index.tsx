@@ -190,14 +190,14 @@ function Home() {
               heroImage ? "text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.5)]" : "text-ink"
             }`}
           >
-            حلويات تُصنع بالحب
+            {story.hero_title}
           </h1>
         </Reveal>
         <Reveal delay={280}>
           <p
             className={`mx-auto mt-4 max-w-md ${heroImage ? "text-white/85" : "text-muted-foreground"}`}
           >
-            كيك المناسبات، كب كيك، ماكارون وحلويات عربية — نُحضّرها طازجة كل يوم لتكون مناسبتك أحلى.
+            {story.hero_subtitle}
           </p>
         </Reveal>
         <Reveal delay={420}>
