@@ -113,51 +113,84 @@ export function MenuPanel({ phone }: { phone: string }) {
         </button>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((item) => (
-          <article
-            key={item.id}
-            className="overflow-hidden rounded-3xl bg-card shadow-[var(--shadow-card)]"
-          >
-            {item.image_url ? (
-              <img src={item.image_url} alt={item.name} className="h-36 w-full object-cover" />
-            ) : (
-              <div className="flex h-36 w-full items-center justify-center bg-muted text-sm text-muted-foreground">
-                بدون صورة
-              </div>
-            )}
-            <div className="p-4">
-              <div className="flex items-center justify-between gap-2">
-                <h4 className="text-ink">{item.name}</h4>
-                {!item.is_available && (
-                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                    مخفي
-                  </span>
-                )}
-              </div>
-              <p className="text-sm text-muted-foreground">{item.category}</p>
-              <p className="mt-1 font-bold text-primary">{Number(item.price).toFixed(2)} د.ل</p>
-              <div className="mt-3 flex gap-2">
-                <button
-                  onClick={() => setEditing(item)}
-                  className="flex-1 rounded-full border border-primary px-3 py-1.5 text-sm text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+      {!editing && categories.length > 1 && (
+        <div>
+          <p className="mb-2 text-xs tracking-[0.25em] text-primary">الرفوف</p>
+          <div className="scrollbar-none -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() =>
+                  document
+                    .getElementById(`admin-cat-${cat.replace(/\s+/g, "-")}`)
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+                className="shrink-0 rounded-full border border-primary/40 bg-card px-4 py-1.5 text-sm text-ink shadow-[var(--shadow-card)] transition-colors hover:bg-primary hover:text-primary-foreground"
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {categories.map((cat) => (
+        <div key={cat} id={`admin-cat-${cat.replace(/\s+/g, "-")}`} className="scroll-mt-24">
+          <h3 className="mb-3 text-lg text-ink">{cat}</h3>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {items
+              .filter((item) => item.category === cat)
+              .map((item) => (
+                <article
+                  key={item.id}
+                  className="overflow-hidden rounded-3xl bg-card shadow-[var(--shadow-card)]"
                 >
-                  تعديل
-                </button>
-                <button
-                  onClick={() => handleDelete(item.id)}
-                  className="rounded-full border border-destructive px-3 py-1.5 text-sm text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground"
-                >
-                  حذف
-                </button>
-              </div>
-            </div>
-          </article>
-        ))}
-        {items.length === 0 && (
-          <p className="col-span-full py-10 text-center text-muted-foreground">لا توجد أصناف بعد</p>
-        )}
-      </div>
+                  {item.image_url ? (
+                    <img
+                      src={item.image_url}
+                      alt={item.name}
+                      className="h-36 w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-36 w-full items-center justify-center bg-muted text-sm text-muted-foreground">
+                      بدون صورة
+                    </div>
+                  )}
+                  <div className="p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="text-ink">{item.name}</h4>
+                      {!item.is_available && (
+                        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                          مخفي
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 font-bold text-primary">
+                      {Number(item.price).toFixed(2)} د.ل
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        onClick={() => setEditing(item)}
+                        className="flex-1 rounded-full border border-primary px-3 py-1.5 text-sm text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+                      >
+                        تعديل
+                      </button>
+                      <button
+                        onClick={() => handleDelete(item.id)}
+                        className="rounded-full border border-destructive px-3 py-1.5 text-sm text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground"
+                      >
+                        حذف
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+          </div>
+        </div>
+      ))}
+      {items.length === 0 && (
+        <p className="py-10 text-center text-muted-foreground">لا توجد أصناف بعد</p>
+      )}
     </div>
   );
 }
