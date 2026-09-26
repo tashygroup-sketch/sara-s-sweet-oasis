@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { MenuItem } from "@/lib/shop.functions";
+import { CropDialog, type CroppedImage } from "./CropDialog";
 
 export type MenuItemDraft = {
   id?: string;
@@ -12,6 +13,8 @@ export type MenuItemDraft = {
   image_ratio: number | null;
   extra_images: string[];
   extra_image_ratios: number[];
+  // "" = not tracked (unlimited)
+  stock: string;
 };
 
 const NEW_CATEGORY = "__new__";
@@ -26,6 +29,7 @@ const empty: MenuItemDraft = {
   image_ratio: null,
   extra_images: [],
   extra_image_ratios: [],
+  stock: "",
 };
 
 export function MenuItemForm({
@@ -42,7 +46,7 @@ export function MenuItemForm({
   busy: boolean;
   onCancel: () => void;
   onSubmit: (draft: MenuItemDraft) => void;
-  onUploadImage: (file: File) => Promise<{ url: string; ratio: number | null }>;
+  onUploadImage: (image: CroppedImage) => Promise<{ url: string; ratio: number | null }>;
   nextSortOrderFor: (category: string) => number;
 }) {
   const [draft, setDraft] = useState<MenuItemDraft>(
@@ -58,6 +62,7 @@ export function MenuItemForm({
           image_ratio: initial.image_ratio ?? null,
           extra_images: initial.extra_images ?? [],
           extra_image_ratios: initial.extra_image_ratios ?? [],
+          stock: initial.stock === null || initial.stock === undefined ? "" : String(initial.stock),
         }
       : empty,
   );
@@ -73,6 +78,10 @@ export function MenuItemForm({
   const [uploadingMain, setUploadingMain] = useState(false);
   const [uploadingExtra, setUploadingExtra] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // The photo waiting to be cropped, and whether it becomes the main photo or an extra one.
+  const [pendingCrop, setPendingCrop] = useState<{ file: File; target: "main" | "extra" } | null>(
+    null,
+  );
 
   function handleCategoryChange(value: string) {
     if (value === NEW_CATEGORY) {
@@ -99,39 +108,35 @@ export function MenuItemForm({
     setNewCategoryName("");
   }
 
-  async function handleMainFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setUploadingMain(true);
-    setUploadError(null);
-    try {
-      const { url, ratio } = await onUploadImage(file);
-      setDraft((d) => ({ ...d, image_url: url, image_ratio: ratio }));
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "تعذّر رفع الصورة");
-    } finally {
-      setUploadingMain(false);
-    }
+  function pickFile(target: "main" | "extra") {
+    return (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (file) setPendingCrop({ file, target });
+    };
   }
 
-  async function handleExtraFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setUploadingExtra(true);
+  async function handleCropped(image: CroppedImage) {
+    const target = pendingCrop?.target ?? "main";
+    setPendingCrop(null);
+    const setUploading = target === "main" ? setUploadingMain : setUploadingExtra;
+    setUploading(true);
     setUploadError(null);
     try {
-      const { url, ratio } = await onUploadImage(file);
-      setDraft((d) => ({
-        ...d,
-        extra_images: [...d.extra_images, url],
-        extra_image_ratios: [...d.extra_image_ratios, ratio ?? 0.8],
-      }));
+      const { url, ratio } = await onUploadImage(image);
+      setDraft((d) =>
+        target === "main"
+          ? { ...d, image_url: url, image_ratio: ratio }
+          : {
+              ...d,
+              extra_images: [...d.extra_images, url],
+              extra_image_ratios: [...d.extra_image_ratios, ratio ?? 4 / 3],
+            },
+      );
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "تعذّر رفع الصورة");
     } finally {
-      setUploadingExtra(false);
+      setUploading(false);
     }
   }
 
@@ -214,6 +219,22 @@ export function MenuItemForm({
           value={draft.sort_order}
           onChange={(v) => setDraft((d) => ({ ...d, sort_order: v }))}
         />
+        <label className="block sm:col-span-2">
+          <span className="mb-1 block text-sm text-muted-foreground">الكمية المتوفرة</span>
+          <input
+            type="number"
+            min={0}
+            step={1}
+            inputMode="numeric"
+            placeholder="اتركيه فارغًا إذا كانت الكمية غير محدودة"
+            value={draft.stock}
+            onChange={(e) => setDraft((d) => ({ ...d, stock: e.target.value }))}
+            className="w-full rounded-2xl border border-border bg-background px-4 py-3 outline-none focus:border-primary"
+          />
+          <span className="mt-1 block text-xs text-muted-foreground">
+            عند الوصول إلى 0 يظهر الصنف كـ«نفذت الكمية» للزبائن حتى تعيدي تعبئته.
+          </span>
+        </label>
       </div>
 
       <label className="block">
@@ -243,17 +264,10 @@ export function MenuItemForm({
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={handleMainFile}
+              onChange={pickFile("main")}
               disabled={uploading}
             />
           </label>
-          {draft.image_url && (
-            <p className={`text-xs ${draft.image_ratio ? "text-primary" : "text-destructive"}`}>
-              {draft.image_ratio
-                ? `✓ تم اكتشاف شكل الصورة (${draft.image_ratio > 1 ? "عمودية" : "أفقية"})`
-                : "⚠ تعذّر اكتشاف شكل الصورة تلقائيًا لهذه الصورة"}
-            </p>
-          )}
         </div>
       </div>
 
@@ -281,7 +295,7 @@ export function MenuItemForm({
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={handleExtraFile}
+              onChange={pickFile("extra")}
               disabled={uploading}
             />
           </label>
@@ -306,6 +320,12 @@ export function MenuItemForm({
           إلغاء
         </button>
       </div>
+
+      <CropDialog
+        file={pendingCrop?.file ?? null}
+        onCancel={() => setPendingCrop(null)}
+        onDone={handleCropped}
+      />
     </form>
   );
 }

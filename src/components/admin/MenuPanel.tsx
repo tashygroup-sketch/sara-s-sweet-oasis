@@ -8,7 +8,7 @@ import {
   uploadMenuImage,
   type MenuItem,
 } from "@/lib/shop.functions";
-import { fileToCompressedBase64 } from "@/lib/image";
+import type { CroppedImage } from "./CropDialog";
 import { MenuItemForm, type MenuItemDraft } from "./MenuItemForm";
 import { Reveal } from "@/components/Reveal";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -47,10 +47,15 @@ export function MenuPanel({ phone }: { phone: string }) {
     return Math.max(...inCategory.map((i) => i.sort_order)) + 1;
   }
 
-  async function handleUploadImage(file: File) {
-    const { base64, contentType } = await fileToCompressedBase64(file);
+  // The photo arrives already cropped to 960×1280 by the crop screen.
+  async function handleUploadImage(image: CroppedImage) {
     const res = await upload({
-      data: { phone, filename: file.name, contentType, dataBase64: base64 },
+      data: {
+        phone,
+        filename: image.filename,
+        contentType: image.contentType,
+        dataBase64: image.base64,
+      },
     });
     return { url: res.url, ratio: res.ratio };
   }
@@ -72,6 +77,7 @@ export function MenuPanel({ phone }: { phone: string }) {
             extra_image_ratios: draft.extra_image_ratios,
             category: draft.category || "حلويات",
             sort_order: Number(draft.sort_order) || 0,
+            stock: draft.stock.trim() === "" ? null : Math.max(0, Math.floor(Number(draft.stock))),
           },
         },
       });
@@ -176,7 +182,9 @@ export function MenuPanel({ phone }: { phone: string }) {
                       <img
                         src={item.image_url}
                         alt={item.name}
-                        className="max-h-56 w-full bg-muted object-contain"
+                        className={`max-h-56 w-full bg-muted object-contain ${
+                          item.stock === 0 ? "opacity-50 grayscale" : ""
+                        }`}
                       />
                     ) : (
                       <div className="flex h-36 w-full items-center justify-center bg-muted text-sm text-muted-foreground">
@@ -184,7 +192,18 @@ export function MenuPanel({ phone }: { phone: string }) {
                       </div>
                     )}
                     <div className="p-4">
-                      <h4 className="text-ink">{item.name}</h4>
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="text-ink">{item.name}</h4>
+                        {item.stock === 0 ? (
+                          <span className="shrink-0 rounded-full bg-destructive px-2 py-0.5 text-xs text-destructive-foreground">
+                            نفذت الكمية
+                          </span>
+                        ) : item.stock !== null ? (
+                          <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-ink">
+                            متوفر: {item.stock}
+                          </span>
+                        ) : null}
+                      </div>
                       <p className="mt-1 font-bold text-primary">
                         {Number(item.price).toFixed(2)} د.ل
                       </p>

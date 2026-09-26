@@ -7,9 +7,11 @@ import {
   addPromotion,
   deletePromotion,
   uploadMenuImage,
+  saveHeroImage,
 } from "@/lib/shop.functions";
 import { fileToCompressedBase64 } from "@/lib/image";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { CropDialog, type CroppedImage } from "./CropDialog";
 
 type StoryData = Awaited<ReturnType<typeof getStorySection>>;
 
@@ -19,6 +21,7 @@ export function StoryPanel({ phone }: { phone: string }) {
   const addImage = useServerFn(addPromotion);
   const removeImage = useServerFn(deletePromotion);
   const upload = useServerFn(uploadMenuImage);
+  const setHero = useServerFn(saveHeroImage);
   const queryClient = useQueryClient();
 
   const [data, setData] = useState<StoryData | null>(null);
@@ -28,6 +31,10 @@ export function StoryPanel({ phone }: { phone: string }) {
   const [saved, setSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [heroBusy, setHeroBusy] = useState(false);
+  const [heroError, setHeroError] = useState<string | null>(null);
+  const [removeHeroOpen, setRemoveHeroOpen] = useState(false);
 
   async function load() {
     try {
@@ -67,16 +74,25 @@ export function StoryPanel({ phone }: { phone: string }) {
     }
   }
 
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  function pickAdPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (!file) return;
+    if (file) setCropFile(file);
+  }
+
+  // Ad photo arrives already cropped to 960×1280 by the crop screen.
+  async function handleCroppedAd(image: CroppedImage) {
+    setCropFile(null);
     setUploading(true);
     setUploadError(null);
     try {
-      const { base64, contentType } = await fileToCompressedBase64(file);
       const res = await upload({
-        data: { phone, filename: file.name, contentType, dataBase64: base64 },
+        data: {
+          phone,
+          filename: image.filename,
+          contentType: image.contentType,
+          dataBase64: image.base64,
+        },
       });
       await addImage({ data: { phone, image_url: res.url, ratio: res.ratio } });
       await load();
@@ -85,6 +101,44 @@ export function StoryPanel({ phone }: { phone: string }) {
       setUploadError(err instanceof Error ? err.message : "تعذّر رفع الصورة");
     } finally {
       setUploading(false);
+    }
+  }
+
+  // The hero photo is a full-screen background (shown with object-cover), so it isn't cropped
+  // to the 3:4 menu shape — it's just compressed and stored.
+  async function handleHeroFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setHeroBusy(true);
+    setHeroError(null);
+    try {
+      const { base64, contentType } = await fileToCompressedBase64(file, 1920, 0.82);
+      const res = await upload({
+        data: { phone, filename: file.name, contentType, dataBase64: base64 },
+      });
+      await setHero({ data: { phone, hero_image_url: res.url } });
+      await load();
+      refreshPublicStory();
+    } catch (err) {
+      setHeroError(err instanceof Error ? err.message : "تعذّر رفع الصورة");
+    } finally {
+      setHeroBusy(false);
+    }
+  }
+
+  async function removeHero() {
+    setRemoveHeroOpen(false);
+    setHeroBusy(true);
+    setHeroError(null);
+    try {
+      await setHero({ data: { phone, hero_image_url: null } });
+      await load();
+      refreshPublicStory();
+    } catch (err) {
+      setHeroError(err instanceof Error ? err.message : "تعذّر الحذف");
+    } finally {
+      setHeroBusy(false);
     }
   }
 
@@ -108,6 +162,60 @@ export function StoryPanel({ phone }: { phone: string }) {
 
   return (
     <div className="space-y-6">
+      <div className="rounded-3xl bg-card p-5 shadow-[var(--shadow-card)]">
+        <h3 className="text-lg text-ink">صورة خلفية الواجهة</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          تظهر خلف الشعار في أعلى الموقع، معتمة وضبابية قليلاً.
+        </p>
+        <div className="relative mt-4 h-40 overflow-hidden rounded-2xl bg-muted">
+          {data.hero_image_url ? (
+            <>
+              <img
+                src={data.hero_image_url}
+                alt=""
+                className="absolute inset-0 h-full w-full scale-110 object-cover blur-[3px]"
+              />
+              <div className="absolute inset-0 bg-black/55" />
+              <p className="absolute inset-0 flex items-center justify-center text-sm text-white">
+                معاينة الخلفية
+              </p>
+            </>
+          ) : (
+            <div
+              className="flex h-full items-center justify-center text-sm text-muted-foreground"
+              style={{ background: "var(--gradient-petal)" }}
+            >
+              لا توجد صورة — تظهر الخلفية الوردية
+            </div>
+          )}
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-primary">
+            <span className="rounded-full border border-primary px-3 py-1.5">
+              {heroBusy ? "جارِ الرفع..." : data.hero_image_url ? "تغيير الصورة" : "+ إضافة صورة"}
+            </span>
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleHeroFile}
+              disabled={heroBusy}
+            />
+          </label>
+          {data.hero_image_url && (
+            <button
+              type="button"
+              onClick={() => setRemoveHeroOpen(true)}
+              disabled={heroBusy}
+              className="rounded-full border border-destructive px-3 py-1.5 text-sm text-destructive"
+            >
+              إزالة الصورة
+            </button>
+          )}
+        </div>
+        {heroError && <p className="mt-2 text-sm text-destructive">{heroError}</p>}
+      </div>
+
       <form
         onSubmit={handleSave}
         className="space-y-3 rounded-3xl bg-card p-5 shadow-[var(--shadow-card)]"
@@ -161,7 +269,7 @@ export function StoryPanel({ phone }: { phone: string }) {
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={handleUpload}
+              onChange={pickAdPhoto}
               disabled={uploading}
             />
           </label>
@@ -172,13 +280,6 @@ export function StoryPanel({ phone }: { phone: string }) {
           {data.images.map((img) => (
             <div key={img.id} className="relative shrink-0">
               <img src={img.image_url} alt="" className="h-32 w-40 rounded-2xl object-cover" />
-              <span
-                className={`absolute bottom-1.5 right-1.5 rounded-full px-2 py-0.5 text-[10px] text-white ${
-                  img.ratio ? "bg-primary" : "bg-destructive"
-                }`}
-              >
-                {img.ratio ? "✓ الشكل معروف" : "⚠ غير معروف"}
-              </span>
               <button
                 onClick={() => setDeleteTarget(img.id)}
                 className="absolute top-1.5 left-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-ink/70 text-sm text-white"
@@ -200,6 +301,14 @@ export function StoryPanel({ phone }: { phone: string }) {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+      <ConfirmDialog
+        open={removeHeroOpen}
+        title="إزالة صورة الخلفية والعودة للخلفية الوردية؟"
+        confirmLabel="إزالة"
+        onConfirm={removeHero}
+        onCancel={() => setRemoveHeroOpen(false)}
+      />
+      <CropDialog file={cropFile} onCancel={() => setCropFile(null)} onDone={handleCroppedAd} />
     </div>
   );
 }
