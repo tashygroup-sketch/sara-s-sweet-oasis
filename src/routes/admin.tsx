@@ -1,8 +1,7 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { listOrders } from "@/lib/shop.functions";
-import { OrdersPanel } from "@/components/admin/OrdersPanel";
 import { MenuPanel } from "@/components/admin/MenuPanel";
 import { StoryPanel } from "@/components/admin/StoryPanel";
 import logoAsset from "@/assets/logo.jpg.asset.json";
@@ -17,14 +16,13 @@ export const Route = createFileRoute("/admin")({
 });
 
 function AdminPage() {
-  const navigate = useNavigate();
   // listOrders doubles as the server-side admin check: it throws unless the phone is the
-  // real admin number, so the client never needs to know that number itself.
+  // admin code, so the client never needs to know that code itself.
   const verify = useServerFn(listOrders);
 
   const [phone, setPhone] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
-  const [tab, setTab] = useState<"orders" | "menu" | "story">("orders");
+  const [tab, setTab] = useState<"menu" | "story">("menu");
   const [gateInput, setGateInput] = useState("");
   const [gateError, setGateError] = useState<string | null>(null);
   const [gateBusy, setGateBusy] = useState(false);
@@ -55,12 +53,6 @@ function AdminPage() {
     } finally {
       setGateBusy(false);
     }
-  }
-
-  function logout() {
-    sessionStorage.removeItem(STORAGE_KEY);
-    setPhone(null);
-    navigate({ to: "/" });
   }
 
   if (checking) {
@@ -122,28 +114,14 @@ function AdminPage() {
           </div>
           <div className="flex items-center gap-2">
             <a href="/" className="rounded-full border border-border px-4 py-2 text-sm text-ink">
-              معاينة الموقع
+              الرجوع الى الموقع
             </a>
-            <button
-              onClick={logout}
-              className="rounded-full border border-destructive px-4 py-2 text-sm text-destructive"
-            >
-              تسجيل الخروج
-            </button>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-8">
         <div className="mb-6 inline-flex rounded-full bg-muted p-1">
-          <button
-            onClick={() => setTab("orders")}
-            className={`rounded-full px-5 py-2 text-sm transition-colors ${
-              tab === "orders" ? "bg-card text-ink shadow" : "text-muted-foreground"
-            }`}
-          >
-            الطلبات
-          </button>
           <button
             onClick={() => setTab("menu")}
             className={`rounded-full px-5 py-2 text-sm transition-colors ${
@@ -162,7 +140,6 @@ function AdminPage() {
           </button>
         </div>
 
-        {tab === "orders" && <OrdersPanel phone={phone} />}
         {tab === "menu" && <MenuPanel phone={phone} />}
         {tab === "story" && <StoryPanel phone={phone} />}
       </main>
