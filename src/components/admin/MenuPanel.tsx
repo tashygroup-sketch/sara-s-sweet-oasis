@@ -39,6 +39,12 @@ export function MenuPanel({ phone }: { phone: string }) {
 
   const categories = [...new Set((items ?? []).map((i) => i.category))];
 
+  function nextSortOrderFor(category: string) {
+    const inCategory = (items ?? []).filter((i) => i.category === category);
+    if (inCategory.length === 0) return 1;
+    return Math.max(...inCategory.map((i) => i.sort_order)) + 1;
+  }
+
   async function handleUploadImage(file: File) {
     const { base64, contentType } = await fileToCompressedBase64(file);
     const res = await upload({
@@ -61,7 +67,6 @@ export function MenuPanel({ phone }: { phone: string }) {
             image_url: draft.image_url,
             category: draft.category || "حلويات",
             sort_order: Number(draft.sort_order) || 0,
-            is_available: draft.is_available,
           },
         },
       });
@@ -91,15 +96,14 @@ export function MenuPanel({ phone }: { phone: string }) {
 
   return (
     <div className="space-y-5">
-      {editing && (
+      {editing === "new" && (
         <MenuItemForm
-          key={editing === "new" ? "new" : editing.id}
-          initial={editing === "new" ? null : editing}
           categories={categories}
           busy={busy}
           onCancel={() => setEditing(null)}
           onSubmit={handleSubmit}
           onUploadImage={handleUploadImage}
+          nextSortOrderFor={nextSortOrderFor}
         />
       )}
 
@@ -140,51 +144,57 @@ export function MenuPanel({ phone }: { phone: string }) {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {items
               .filter((item) => item.category === cat)
-              .map((item) => (
-                <article
-                  key={item.id}
-                  className="overflow-hidden rounded-3xl bg-card shadow-[var(--shadow-card)]"
-                >
-                  {item.image_url ? (
-                    <img
-                      src={item.image_url}
-                      alt={item.name}
-                      className="h-36 w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-36 w-full items-center justify-center bg-muted text-sm text-muted-foreground">
-                      بدون صورة
-                    </div>
-                  )}
-                  <div className="p-4">
-                    <div className="flex items-center justify-between gap-2">
+              .map((item) =>
+                editing !== "new" && editing?.id === item.id ? (
+                  <MenuItemForm
+                    key={item.id}
+                    initial={item}
+                    categories={categories}
+                    busy={busy}
+                    onCancel={() => setEditing(null)}
+                    onSubmit={handleSubmit}
+                    onUploadImage={handleUploadImage}
+                    nextSortOrderFor={nextSortOrderFor}
+                  />
+                ) : (
+                  <article
+                    key={item.id}
+                    className="overflow-hidden rounded-3xl bg-card shadow-[var(--shadow-card)]"
+                  >
+                    {item.image_url ? (
+                      <img
+                        src={item.image_url}
+                        alt={item.name}
+                        className="h-36 w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-36 w-full items-center justify-center bg-muted text-sm text-muted-foreground">
+                        بدون صورة
+                      </div>
+                    )}
+                    <div className="p-4">
                       <h4 className="text-ink">{item.name}</h4>
-                      {!item.is_available && (
-                        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                          مخفي
-                        </span>
-                      )}
+                      <p className="mt-1 font-bold text-primary">
+                        {Number(item.price).toFixed(2)} د.ل
+                      </p>
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          onClick={() => setEditing(item)}
+                          className="flex-1 rounded-full border border-primary px-3 py-1.5 text-sm text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+                        >
+                          تعديل
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          className="rounded-full border border-destructive px-3 py-1.5 text-sm text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground"
+                        >
+                          حذف
+                        </button>
+                      </div>
                     </div>
-                    <p className="mt-1 font-bold text-primary">
-                      {Number(item.price).toFixed(2)} د.ل
-                    </p>
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        onClick={() => setEditing(item)}
-                        className="flex-1 rounded-full border border-primary px-3 py-1.5 text-sm text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
-                      >
-                        تعديل
-                      </button>
-                      <button
-                        onClick={() => handleDelete(item.id)}
-                        className="rounded-full border border-destructive px-3 py-1.5 text-sm text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground"
-                      >
-                        حذف
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                ),
+              )}
           </div>
         </div>
       ))}
