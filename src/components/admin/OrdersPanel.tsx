@@ -56,6 +56,16 @@ export function OrdersPanel({ phone }: { phone: string }) {
                 {o.phone}
               </p>
               {o.address && <p className="mt-1 text-sm text-muted-foreground">{o.address}</p>}
+              {o.location_url && (
+                <a
+                  href={o.location_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-1 inline-block text-sm text-primary hover:underline"
+                >
+                  📍 عرض الموقع على الخريطة
+                </a>
+              )}
               {o.delivery_date && (
                 <p className="text-sm text-muted-foreground">تاريخ الاستلام: {o.delivery_date}</p>
               )}
