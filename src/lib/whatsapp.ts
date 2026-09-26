@@ -22,12 +22,12 @@ export function buildWhatsAppDraft(info: BookingInfo, lines: CartLine[], total: 
     `الهاتف: ${info.phone}`,
     `العنوان: ${info.address}`,
     info.locationUrl ? `الموقع على الخريطة: ${info.locationUrl}` : null,
+    info.notes ? `ملاحظات: ${info.notes}` : null,
     "",
     "الطلبات:",
     items,
     "",
     `الإجمالي: ${total.toFixed(2)} د.ل`,
-    info.notes ? `ملاحظات: ${info.notes}` : null,
   ]
     .filter(Boolean)
     .join("\n");
