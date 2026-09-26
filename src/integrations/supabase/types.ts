@@ -15,7 +15,9 @@ export type Database = {
           description: string | null;
           id: string;
           image_url: string | null;
+          image_ratio: number | null;
           extra_images: string[];
+          extra_image_ratios: number[];
           is_available: boolean;
           name: string;
           price: number;
@@ -28,7 +30,9 @@ export type Database = {
           description?: string | null;
           id?: string;
           image_url?: string | null;
+          image_ratio?: number | null;
           extra_images?: string[];
+          extra_image_ratios?: number[];
           is_available?: boolean;
           name: string;
           price?: number;
@@ -41,7 +45,9 @@ export type Database = {
           description?: string | null;
           id?: string;
           image_url?: string | null;
+          image_ratio?: number | null;
           extra_images?: string[];
+          extra_image_ratios?: number[];
           is_available?: boolean;
           name?: string;
           price?: number;
@@ -97,18 +103,21 @@ export type Database = {
           created_at: string;
           id: string;
           image_url: string;
+          ratio: number | null;
           sort_order: number;
         };
         Insert: {
           created_at?: string;
           id?: string;
           image_url: string;
+          ratio?: number | null;
           sort_order?: number;
         };
         Update: {
           created_at?: string;
           id?: string;
           image_url?: string;
+          ratio?: number | null;
           sort_order?: number;
         };
         Relationships: [];
