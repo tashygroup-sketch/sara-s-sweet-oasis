@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getMenu, getStorySection } from "@/lib/shop.functions";
 import { LogoIntro } from "@/components/LogoIntro";
 import { Reveal } from "@/components/Reveal";
+import { Carousel } from "@/components/Carousel";
 import { BookingDialog } from "@/components/BookingDialog";
 import { useCart } from "@/lib/cart";
 import logoAsset from "@/assets/logo.jpg.asset.json";
@@ -180,20 +181,14 @@ function Home() {
           </p>
         </Reveal>
         {story.images.length > 0 && (
-          <div className="scrollbar-none -mx-4 mt-12 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2">
-            {story.images.map((img, i) => (
-              <Reveal key={img.id} variant="side" delay={i * 120}>
-                <img
-                  src={img.image_url}
-                  alt=""
-                  loading="lazy"
-                  width={1024}
-                  height={1024}
-                  className="h-56 w-64 shrink-0 snap-start rounded-3xl object-cover shadow-[var(--shadow-card)] sm:h-72 sm:w-80"
-                />
-              </Reveal>
-            ))}
-          </div>
+          <Reveal delay={280}>
+            <div className="mx-auto mt-12 max-w-md overflow-hidden rounded-3xl shadow-[var(--shadow-card)]">
+              <Carousel
+                images={story.images.map((img) => img.image_url)}
+                heightClassName="h-72 sm:h-96"
+              />
+            </div>
+          </Reveal>
         )}
       </section>
 
@@ -242,30 +237,14 @@ function Home() {
                 .map((item, i) => (
                   <Reveal key={item.id} delay={i * 110 + ci * 40} variant="up">
                     <article className="group overflow-hidden rounded-3xl bg-card shadow-[var(--shadow-card)]">
-                      {item.extra_images.length > 0 ? (
-                        <div className="scrollbar-none flex snap-x snap-mandatory gap-1 overflow-x-auto bg-muted">
-                          {[item.image_url, ...item.extra_images]
-                            .filter((src): src is string => Boolean(src))
-                            .map((src, idx) => (
-                              <img
-                                key={idx}
-                                src={src}
-                                alt={item.name}
-                                loading="lazy"
-                                className="h-56 w-full shrink-0 snap-start object-contain"
-                              />
-                            ))}
-                        </div>
-                      ) : (
-                        item.image_url && (
-                          <img
-                            src={item.image_url}
-                            alt={item.name}
-                            loading="lazy"
-                            className="h-auto w-full bg-muted object-contain transition-transform duration-700 group-hover:scale-105"
-                          />
-                        )
-                      )}
+                      {item.image_url || item.extra_images.length > 0 ? (
+                        <Carousel
+                          images={[item.image_url, ...item.extra_images].filter(
+                            (src): src is string => Boolean(src),
+                          )}
+                          heightClassName="h-64"
+                        />
+                      ) : null}
                       <div className="p-5">
                         <h4 className="text-lg text-ink">{item.name}</h4>
                         {item.description && (
