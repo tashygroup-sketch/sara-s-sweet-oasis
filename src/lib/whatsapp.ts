@@ -1,6 +1,6 @@
 import type { CartLine } from "./cart";
 
-export const WHATSAPP_NUMBER = "218915756638";
+export const WHATSAPP_NUMBER = "218913411424";
 
 export type BookingInfo = {
   name: string;

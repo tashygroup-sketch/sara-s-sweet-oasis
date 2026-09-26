@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
-export const WHATSAPP_NUMBER = "218915756638";
+export const WHATSAPP_NUMBER = "218913411424";
 
 export type MenuItem = {
   id: string;
@@ -10,6 +10,7 @@ export type MenuItem = {
   description: string | null;
   price: number;
   image_url: string | null;
+  extra_images: string[];
   category: string;
   sort_order: number;
   is_available: boolean;
@@ -55,7 +56,7 @@ async function adminClient(phone: string) {
 export const getMenu = createServerFn({ method: "GET" }).handler(async () => {
   const { data, error } = await publicClient()
     .from("menu_items")
-    .select("id,name,description,price,image_url,category,sort_order,is_available")
+    .select("id,name,description,price,image_url,extra_images,category,sort_order,is_available")
     .order("sort_order", { ascending: true });
   if (error) throw new Error(error.message);
   return (data ?? []) as MenuItem[];
@@ -146,6 +147,7 @@ export const saveMenuItem = createServerFn({ method: "POST" })
         description?: string;
         price: number;
         image_url?: string;
+        extra_images?: string[];
         category: string;
         sort_order?: number;
         is_available?: boolean;
@@ -162,14 +164,24 @@ export const saveMenuItem = createServerFn({ method: "POST" })
       description: data.item.description?.trim().slice(0, 500) ?? null,
       price: Number(data.item.price) || 0,
       image_url: data.item.image_url?.trim() || null,
+      extra_images: (data.item.extra_images ?? []).map((u) => u.trim()).filter(Boolean),
       category: data.item.category?.trim().slice(0, 60) || "حلويات",
       sort_order: Number(data.item.sort_order) || 0,
       is_available: data.item.is_available ?? true,
     };
-    const q = data.item.id
+    let q = data.item.id
       ? db.from("menu_items").update(payload).eq("id", data.item.id)
       : db.from("menu_items").insert(payload);
-    const { error } = await q;
+    let { error } = await q;
+    if (error?.code === "PGRST204") {
+      // extra_images hasn't been migrated onto the live database yet — save the rest
+      // of the item rather than failing the whole save.
+      const { extra_images: _extraImages, ...withoutExtra } = payload;
+      q = data.item.id
+        ? db.from("menu_items").update(withoutExtra).eq("id", data.item.id)
+        : db.from("menu_items").insert(withoutExtra);
+      ({ error } = await q);
+    }
     if (error) throw new Error(error.message);
     return { ok: true };
   });
