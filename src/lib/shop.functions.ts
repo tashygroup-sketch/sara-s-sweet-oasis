@@ -1,500 +1,462 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { getMenu, getStorySection } from "@/lib/shop.functions";
-import { LogoIntro } from "@/components/LogoIntro";
-import { Reveal } from "@/components/Reveal";
-import { Carousel } from "@/components/Carousel";
-import { BookingDialog } from "@/components/BookingDialog";
-import { useCart } from "@/lib/cart";
-import logoAsset from "@/assets/logo.jpg.asset.json";
+import { createServerFn } from "@tanstack/react-start";
+import { createClient } from "@supabase/supabase-js";
+import { imageSize } from "image-size";
+import type { Database } from "@/integrations/supabase/types";
 
-const menuQuery = queryOptions({ queryKey: ["menu"], queryFn: () => getMenu() });
-const storyQuery = queryOptions({ queryKey: ["story"], queryFn: () => getStorySection() });
+export const WHATSAPP_NUMBER = "218913411424";
 
-export const Route = createFileRoute("/")({
-  loader: ({ context }) =>
-    Promise.all([
-      context.queryClient.ensureQueryData(menuQuery),
-      context.queryClient.ensureQueryData(storyQuery),
-    ]),
-  head: () => ({
-    meta: [
-      { title: "مركز سارة للحلويات | حلويات فاخرة" },
-      {
-        name: "description",
-        content:
-          "مركز سارة للحلويات — كيك المناسبات، كب كيك، ماكارون وحلويات عربية. احجز طلبك بسهولة عبر واتساب.",
-      },
-      { property: "og:title", content: "مركز سارة للحلويات" },
-      {
-        property: "og:description",
-        content: "حلويات فاخرة لكل مناسبة — احجز طلبك الآن من مركز سارة للحلويات.",
-      },
-    ],
-  }),
-  component: Home,
-});
+export type MenuItem = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  image_url: string | null;
+  image_ratio: number | null;
+  extra_images: string[];
+  extra_image_ratios: number[];
+  category: string;
+  sort_order: number;
+  is_available: boolean;
+  // null = stock not tracked (unlimited); 0 = sold out
+  stock: number | null;
+};
 
-function Home() {
-  const { data: menu } = useSuspenseQuery(menuQuery);
-  const { data: story } = useSuspenseQuery(storyQuery);
-  const heroImage = story.hero_image_url;
-  const { lines, add, remove, setQty, count, total } = useCart();
-  const [booking, setBooking] = useState(false);
-  const [cartOpen, setCartOpen] = useState(false);
-  const [justAdded, setJustAdded] = useState<string | null>(null);
-  const [limitHit, setLimitHit] = useState<string | null>(null);
-  const [menuPrompt, setMenuPrompt] = useState(false);
-
-  const available = menu.filter((m) => m.is_available);
-  const categories = [...new Set(available.map((m) => m.category))];
-
-  function categoryAnchor(cat: string) {
-    return `cat-${cat.replace(/\s+/g, "-")}`;
-  }
-
-  function scrollToCategory(cat: string) {
-    document
-      .getElementById(categoryAnchor(cat))
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  // null = stock not tracked. Used to grey out sold-out items and cap cart quantities.
-  const stockById = new Map(menu.map((m) => [m.id, m.stock]));
-  const qtyInCart = (id: string) => lines.find((l) => l.id === id)?.qty ?? 0;
-  const atLimit = (id: string) => {
-    const stock = stockById.get(id);
-    return stock !== null && stock !== undefined && qtyInCart(id) >= stock;
-  };
-  // Lines asking for more than is left (e.g. it sold out while sitting in the cart).
-  const overStockLines = lines.filter((l) => {
-    const stock = stockById.get(l.id);
-    return stock !== null && stock !== undefined && l.qty > stock;
-  });
-
-  function handleAdd(item: (typeof available)[number]) {
-    if (atLimit(item.id)) {
-      setLimitHit(item.id);
-      window.setTimeout(() => setLimitHit((cur) => (cur === item.id ? null : cur)), 1600);
-      return;
-    }
-    add({
-      id: item.id,
-      name: item.name,
-      price: Number(item.price),
-      image_url: item.image_url,
-    });
-    setJustAdded(item.id);
-    window.setTimeout(() => setJustAdded((cur) => (cur === item.id ? null : cur)), 1100);
-  }
-
-  function handleBookingRequest() {
-    if (lines.length > 0) {
-      setCartOpen(true);
-      return;
-    }
-
-    setMenuPrompt(true);
-    document.getElementById("menu")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    window.setTimeout(() => setMenuPrompt(false), 3500);
-  }
-
-  useEffect(() => {
-    if (!cartOpen && !booking) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [cartOpen, booking]);
-
+// PostgREST error codes for "that column doesn't exist (yet)". Lets the site keep working in
+// the window between shipping this code and running the matching database migration.
+function isMissingColumn(error: { code?: string; message?: string } | null) {
+  if (!error) return false;
   return (
-    <div className="relative overflow-x-hidden">
-      <LogoIntro />
-
-      {/* header */}
-      <header className="sticky top-0 z-30 border-b border-border/60 bg-background/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <img
-              src={logoAsset.url}
-              alt="شعار مركز سارة للحلويات"
-              width={48}
-              height={48}
-              className="h-11 w-11 object-contain"
-            />
-            <span className="text-lg text-ink">مركز سارة للحلويات</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setCartOpen(true)}
-              className="relative rounded-full border border-border px-4 py-2 text-sm text-ink"
-            >
-              السلة
-              {count > 0 && (
-                <span
-                  key={count}
-                  className="cart-bump absolute -top-2 -left-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground"
-                >
-                  {count}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={handleBookingRequest}
-              className="rounded-full px-5 py-2 text-sm font-medium text-primary-foreground"
-              style={{ backgroundImage: "var(--gradient-pink)" }}
-            >
-              احجز
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* hero */}
-      <section className="relative isolate overflow-hidden px-4 pt-16 pb-24 text-center">
-        {heroImage ? (
-          <>
-            {/* admin's photo: slightly blurred (scaled up so the blur doesn't leave soft edges)
-                under a dark tint, so the white text and logo stay readable on any photo */}
-            <img
-              src={heroImage}
-              alt=""
-              aria-hidden
-              className="pointer-events-none absolute inset-0 -z-20 h-full w-full scale-110 object-cover blur-[3px]"
-            />
-            <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-black/60 via-black/50 to-black/70" />
-          </>
-        ) : (
-          <>
-            <div
-              className="pointer-events-none absolute inset-0 -z-10"
-              style={{ background: "var(--gradient-petal)" }}
-            />
-            <div className="pointer-events-none absolute -top-16 -right-10 -z-10 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
-          </>
-        )}
-        <Reveal variant="zoom">
-          <img
-            src={logoAsset.url}
-            alt="مركز سارة للحلويات"
-            width={260}
-            height={260}
-            className="float-slow mx-auto h-40 w-40 object-contain drop-shadow-[0_18px_40px_rgba(0,0,0,0.2)] sm:h-52 sm:w-52"
-          />
-        </Reveal>
-        <Reveal delay={150}>
-          <h1
-            className={`mt-8 text-4xl leading-tight sm:text-5xl ${
-              heroImage ? "text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.5)]" : "text-ink"
-            }`}
-          >
-            {story.hero_title}
-          </h1>
-        </Reveal>
-        <Reveal delay={280}>
-          <p
-            className={`mx-auto mt-4 max-w-md ${heroImage ? "text-white/85" : "text-muted-foreground"}`}
-          >
-            {story.hero_subtitle}
-          </p>
-        </Reveal>
-        <Reveal delay={420}>
-          <button
-            onClick={handleBookingRequest}
-            className="mt-8 rounded-full px-10 py-4 text-lg font-medium text-primary-foreground shadow-[var(--shadow-soft)]"
-            style={{ backgroundImage: "var(--gradient-pink)" }}
-          >
-            احجز طلبك
-          </button>
-        </Reveal>
-      </section>
-
-      {/* story */}
-      <section className="mx-auto max-w-4xl px-4 py-16">
-        <Reveal>
-          <p className="text-center text-sm tracking-[0.35em] text-primary">{story.story_label}</p>
-        </Reveal>
-        <Reveal delay={120}>
-          <h2 className="mt-4 text-center text-3xl text-ink">{story.story_title}</h2>
-        </Reveal>
-        <Reveal delay={240}>
-          <p className="mx-auto mt-5 max-w-xl text-center leading-8 text-muted-foreground">
-            {story.story_text}
-          </p>
-        </Reveal>
-        {story.images.length > 0 && (
-          <Reveal delay={280}>
-            <div className="relative left-1/2 right-1/2 -mx-[50vw] mt-12 w-screen md:static md:mx-auto md:w-full md:max-w-xl">
-              <Carousel
-                images={story.images.map((img) => ({ url: img.image_url, ratio: img.ratio }))}
-              />
-            </div>
-          </Reveal>
-        )}
-      </section>
-
-      {/* menu */}
-      <section id="menu" className="mx-auto max-w-5xl px-4 py-16">
-        <Reveal>
-          <p className="text-center text-sm tracking-[0.35em] text-primary">المنيو</p>
-        </Reveal>
-        <Reveal delay={120}>
-          <h2 className="mt-4 text-center text-3xl text-ink">اختاري ما يحلو لكِ</h2>
-        </Reveal>
-
-        {menuPrompt && (
-          <p
-            role="status"
-            className="animate-fade-in mx-auto mt-5 w-fit rounded-xl border border-primary/30 bg-accent px-5 py-3 text-center font-medium text-accent-foreground shadow-[var(--shadow-card)]"
-          >
-            أختر من المنيو أولاً
-          </p>
-        )}
-
-        {categories.length > 1 && (
-          <Reveal>
-            <div className="scrollbar-none -mx-4 mt-8 flex gap-2 overflow-x-auto px-4 pb-2">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => scrollToCategory(cat)}
-                  className="shrink-0 rounded-full border border-primary/40 bg-card px-5 py-2 text-sm text-ink shadow-[var(--shadow-card)] transition-colors hover:bg-primary hover:text-primary-foreground"
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          </Reveal>
-        )}
-
-        {categories.map((cat, ci) => (
-          <div key={cat} id={categoryAnchor(cat)} className="mt-12 scroll-mt-24">
-            <Reveal>
-              <h3 className="text-xl text-ink">{cat}</h3>
-            </Reveal>
-            <div className="mt-5 grid grid-cols-1 gap-5">
-              {available
-                .filter((m) => m.category === cat)
-                .map((item, i) => (
-                  <Reveal key={item.id} delay={i * 110 + ci * 40} variant="up">
-                    <article
-                      className={`group relative overflow-hidden rounded-3xl bg-card shadow-[var(--shadow-card)] transition ${
-                        item.stock === 0 ? "opacity-60 grayscale" : ""
-                      }`}
-                    >
-                      {item.stock === 0 && (
-                        <span className="absolute top-3 right-3 z-10 rounded-full bg-ink/80 px-3 py-1 text-xs text-white">
-                          نفذت الكمية
-                        </span>
-                      )}
-                      {item.image_url || item.extra_images.length > 0 ? (
-                        <Carousel
-                          images={[
-                            item.image_url
-                              ? { url: item.image_url, ratio: item.image_ratio }
-                              : null,
-                            ...item.extra_images.map((url, idx) => ({
-                              url,
-                              ratio: item.extra_image_ratios[idx] ?? null,
-                            })),
-                          ].filter(
-                            (img): img is { url: string; ratio: number | null } => img !== null,
-                          )}
-                        />
-                      ) : null}
-                      <div className="p-5">
-                        <h4 className="text-lg text-ink">{item.name}</h4>
-                        {item.description && (
-                          <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
-                        )}
-                        <div className="mt-4 flex items-center justify-between">
-                          <span className="font-bold text-primary">
-                            {Number(item.price).toFixed(2)} د.ل
-                          </span>
-                          {item.stock === 0 ? (
-                            <button
-                              disabled
-                              className="cursor-not-allowed rounded-full border border-border px-4 py-2 text-sm text-muted-foreground"
-                            >
-                              نفذت الكمية
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleAdd(item)}
-                              className={`rounded-full border px-4 py-2 text-sm transition-colors ${
-                                limitHit === item.id
-                                  ? "border-border text-muted-foreground"
-                                  : justAdded === item.id
-                                    ? "border-primary bg-primary text-primary-foreground"
-                                    : "border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-                              }`}
-                            >
-                              {limitHit === item.id
-                                ? `المتوفر ${item.stock} فقط`
-                                : justAdded === item.id
-                                  ? "✓ أضيفت للسلة"
-                                  : "أضف للسلة"}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </article>
-                  </Reveal>
-                ))}
-            </div>
-          </div>
-        ))}
-      </section>
-
-      {/* contact */}
-      <footer
-        className="mt-10 px-4 py-16 text-center"
-        style={{ background: "var(--gradient-petal)" }}
-      >
-        <Reveal variant="zoom">
-          <img
-            src={logoAsset.url}
-            alt="شعار المركز"
-            loading="lazy"
-            width={120}
-            height={120}
-            className="mx-auto h-24 w-24 object-contain"
-          />
-        </Reveal>
-        <Reveal delay={120}>
-          <h2 className="mt-6 text-2xl text-ink">اطلب الآن</h2>
-          <p className="mt-2 text-muted-foreground" dir="ltr">
-            0913411424
-          </p>
-          <button
-            onClick={handleBookingRequest}
-            className="mt-6 rounded-full px-8 py-3 font-medium text-primary-foreground"
-            style={{ backgroundImage: "var(--gradient-pink)" }}
-          >
-            احجز
-          </button>
-        </Reveal>
-
-        <Reveal delay={220}>
-          <div className="mx-auto mt-10 max-w-sm rounded-3xl bg-card/70 p-5 text-sm text-muted-foreground">
-            <p className="text-xs tracking-[0.3em] text-primary">الموقع</p>
-            <p className="mt-2 text-ink">
-              بنغازي، شارع المركبات — بعد نادي الأصايل، قبل كورفا يمين
-            </p>
-            <a
-              href="https://maps.app.goo.gl/mSBKM2FGUfMctEpw8?g_st=ac"
-              target="_blank"
-              rel="noreferrer"
-              className="mt-4 inline-flex items-center gap-2 rounded-xl border border-primary bg-card px-5 py-3 font-bold text-primary shadow-[var(--shadow-card)] transition-colors hover:bg-primary hover:text-primary-foreground"
-            >
-              📍 افتح الموقع في خرائط جوجل
-            </a>
-            <p className="mt-4">
-              <a href="tel:0913411424" dir="ltr" className="text-ink hover:text-primary">
-                0913411424
-              </a>
-            </p>
-          </div>
-        </Reveal>
-
-        <Reveal delay={320}>
-          <p className="mt-8 text-xs text-muted-foreground">© مركز سارة للحلويات</p>
-        </Reveal>
-      </footer>
-
-      {/* cart drawer */}
-      {cartOpen && (
-        <div className="fixed inset-0 z-40 flex items-end overflow-hidden bg-ink/40 backdrop-blur-sm sm:items-center sm:justify-center">
-          <div className="animate-scale-in max-h-[92dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-3xl bg-card p-6 sm:rounded-3xl">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl text-ink">سلة الطلبات</h2>
-              <button
-                onClick={() => setCartOpen(false)}
-                className="rounded-full px-3 py-1 hover:bg-muted"
-              >
-                ✕
-              </button>
-            </div>
-            {lines.length === 0 ? (
-              <p className="py-10 text-center text-muted-foreground">السلة فارغة</p>
-            ) : (
-              <>
-                <div className="mt-5 space-y-3">
-                  {lines.map((l) => (
-                    <div key={l.id} className="flex items-center gap-3">
-                      {l.image_url && (
-                        <img
-                          src={l.image_url}
-                          alt={l.name}
-                          className="h-14 w-14 rounded-2xl object-cover"
-                        />
-                      )}
-                      <div className="flex-1">
-                        <p className="text-ink">{l.name}</p>
-                        <p className="text-sm text-muted-foreground">{l.price.toFixed(2)} د.ل</p>
-                        {overStockLines.some((o) => o.id === l.id) && (
-                          <p className="text-xs text-destructive">
-                            {stockById.get(l.id) === 0
-                              ? "نفذت الكمية — يرجى إزالته"
-                              : `المتوفر ${stockById.get(l.id)} فقط`}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setQty(l.id, l.qty - 1)}
-                          className="h-8 w-8 rounded-full bg-muted"
-                        >
-                          −
-                        </button>
-                        <span>{l.qty}</span>
-                        <button
-                          onClick={() => setQty(l.id, l.qty + 1)}
-                          disabled={atLimit(l.id)}
-                          className="h-8 w-8 rounded-full bg-muted disabled:opacity-40"
-                        >
-                          +
-                        </button>
-                        <button
-                          onClick={() => remove(l.id)}
-                          aria-label="إزالة الصنف"
-                          className="mr-1 flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-destructive"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-5 flex justify-between border-t border-border pt-4 font-bold text-ink">
-                  <span>الإجمالي</span>
-                  <span>{total.toFixed(2)} د.ل</span>
-                </div>
-                {overStockLines.length > 0 && (
-                  <p className="mt-4 text-center text-sm text-destructive">
-                    بعض الأصناف لم تعد متوفرة بالكمية المطلوبة، يرجى تعديل السلة
-                  </p>
-                )}
-                <button
-                  onClick={() => {
-                    setCartOpen(false);
-                    setBooking(true);
-                  }}
-                  disabled={overStockLines.length > 0}
-                  className="mt-5 w-full rounded-full px-6 py-3 font-medium text-primary-foreground disabled:opacity-50"
-                  style={{ backgroundImage: "var(--gradient-pink)" }}
-                >
-                  احجز الآن
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      <BookingDialog open={booking} onClose={() => setBooking(false)} />
-    </div>
+    error.code === "42703" ||
+    error.code === "PGRST204" ||
+    /does not exist|Could not find the/.test(error.message ?? "")
   );
 }
+
+// Measures a photo's real shape once, at upload time, using a library that's already
+// battle-tested against real-world encoder output (my own first attempt at this used a
+// hand-rolled parser that worked on my own test files but evidently missed something in
+// what actual phone/Chrome-produced JPEGs look like). Also corrects for EXIF orientation:
+// a photo tagged as rotated 90°/270° has its width and height swapped from how it's
+// actually displayed, and that swap has to be applied here to get the true visual ratio.
+function getImageRatio(bytes: Uint8Array): number | null {
+  try {
+    const result = imageSize(bytes);
+    if (!result.width || !result.height) return null;
+    const rotated =
+      result.orientation != null && result.orientation >= 5 && result.orientation <= 8;
+    const width = rotated ? result.height : result.width;
+    const height = rotated ? result.width : result.height;
+    return height / width;
+  } catch {
+    return null;
+  }
+}
+
+export type OrderRow = {
+  id: string;
+  customer_name: string;
+  phone: string;
+  address: string | null;
+  delivery_date: string | null;
+  notes: string | null;
+  location_url: string | null;
+  items: { name: string; qty: number; price: number }[];
+  total: number;
+  status: string;
+  created_at: string;
+};
+
+function publicClient() {
+  const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
+  return createClient(process.env["SUPABASE_URL"]!, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      fetch: (input, init) => {
+        const h = new Headers(init?.headers);
+        if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`)
+          h.delete("Authorization");
+        h.set("apikey", key);
+        return fetch(input, { ...init, headers: h });
+      },
+    },
+  });
+}
+
+async function adminClient(phone: string) {
+  const { isAdminPhone } = await import("@/lib/admin.server");
+  if (!isAdminPhone(phone)) throw new Error("غير مصرح");
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin;
+}
+
+const MENU_COLUMN_SETS = [
+  "id,name,description,price,image_url,image_ratio,extra_images,extra_image_ratios,category,sort_order,is_available,stock",
+  "id,name,description,price,image_url,image_ratio,extra_images,extra_image_ratios,category,sort_order,is_available",
+  "id,name,description,price,image_url,category,sort_order,is_available",
+];
+
+export const getMenu = createServerFn({ method: "GET" }).handler(async () => {
+  const client = publicClient();
+  for (const columns of MENU_COLUMN_SETS) {
+    const { data, error } = await client
+      .from("menu_items")
+      .select(columns)
+      .order("sort_order", { ascending: true });
+    if (isMissingColumn(error)) continue;
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as unknown as Partial<MenuItem>[]).map((row) => ({
+      ...row,
+      image_ratio: row.image_ratio ?? null,
+      extra_images: row.extra_images ?? [],
+      extra_image_ratios: row.extra_image_ratios ?? [],
+      stock: row.stock ?? null,
+    })) as MenuItem[];
+  }
+  throw new Error("تعذّر تحميل المنيو");
+});
+
+export const createOrder = createServerFn({ method: "POST" })
+  .inputValidator(
+    (input: {
+      customer_name: string;
+      phone: string;
+      address: string;
+      notes?: string;
+      location_url?: string;
+      items: { id?: string; name: string; qty: number; price: number }[];
+      total: number;
+    }) => input,
+  )
+  .handler(async ({ data }) => {
+    const { isAdminPhone } = await import("@/lib/admin.server");
+    if (isAdminPhone(data.phone)) {
+      // Admin trigger code: don't log this as a real customer order, and skip every
+      // validation rule below that a real order would need to satisfy.
+      return { id: "admin", isAdmin: true as const };
+    }
+
+    const name = data.customer_name?.trim();
+    const phone = data.phone?.trim();
+    const address = data.address?.trim();
+    if (!name) throw new Error("الاسم مطلوب");
+    if (!phone || !/^(091|092|093|094)\d{7}$/.test(phone)) {
+      throw new Error("رقم الهاتف يجب أن يتكون من 10 أرقام ويبدأ بـ 091 أو 092 أو 093 أو 094");
+    }
+    if (!address) throw new Error("العنوان مطلوب");
+    if (!Array.isArray(data.items) || data.items.length === 0) {
+      throw new Error("اختر صنفًا واحدًا على الأقل من المنيو");
+    }
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // Deduct stock first, atomically: if any item doesn't have enough, nothing is deducted
+    // and the order is refused before WhatsApp ever opens.
+    const stockItems = data.items
+      .filter((i) => typeof i.id === "string" && i.id.length > 0)
+      .map((i) => ({ id: i.id, qty: Math.max(0, Math.floor(Number(i.qty) || 0)) }));
+    if (stockItems.length > 0) {
+      const { error: stockError } = await supabaseAdmin.rpc("reserve_stock", {
+        p_items: stockItems,
+      });
+      if (stockError) {
+        const outOfStock = /OUT_OF_STOCK:(.+)$/.exec(stockError.message);
+        if (outOfStock) {
+          throw new Error(
+            `الكمية المتوفرة من "${outOfStock[1]!.trim()}" لا تكفي، يرجى تعديل السلة`,
+          );
+        }
+        if (stockError.message.includes("ITEM_NOT_FOUND")) {
+          throw new Error("أحد الأصناف في السلة لم يعد متوفرًا، يرجى تعديل السلة");
+        }
+        // PGRST202 = function not found: the stock migration hasn't been run yet.
+        // Don't block real orders over it — just skip stock tracking until it exists.
+        if (stockError.code !== "PGRST202") throw new Error(stockError.message);
+      }
+    }
+
+    const payload: Database["public"]["Tables"]["orders"]["Insert"] = {
+      customer_name: name.slice(0, 120),
+      phone: phone.slice(0, 40),
+      address: address.slice(0, 300),
+      notes: data.notes?.trim().slice(0, 600) ?? null,
+      location_url: data.location_url?.trim().slice(0, 300) ?? null,
+      items: data.items,
+      total: data.total ?? 0,
+    };
+    let result = await supabaseAdmin.from("orders").insert(payload).select("id").single();
+    if (result.error?.code === "PGRST204") {
+      // The location_url column hasn't been migrated onto the live database yet —
+      // don't let a customer's order fail just because of that; save without it.
+      const { location_url: _locationUrl, ...withoutLocation } = payload;
+      result = await supabaseAdmin.from("orders").insert(withoutLocation).select("id").single();
+    }
+    if (result.error) throw new Error(result.error.message);
+    return { id: result.data.id as string, isAdmin: false as const };
+  });
+
+export const listOrders = createServerFn({ method: "POST" })
+  .inputValidator((input: { phone: string }) => input)
+  .handler(async ({ data }) => {
+    const db = await adminClient(data.phone);
+    const { data: rows, error } = await db
+      .from("orders")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) throw new Error(error.message);
+    return (rows ?? []) as OrderRow[];
+  });
+
+export const updateOrderStatus = createServerFn({ method: "POST" })
+  .inputValidator((input: { phone: string; id: string; status: string }) => input)
+  .handler(async ({ data }) => {
+    const db = await adminClient(data.phone);
+    const { error } = await db.from("orders").update({ status: data.status }).eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const saveMenuItem = createServerFn({ method: "POST" })
+  .inputValidator(
+    (input: {
+      phone: string;
+      item: {
+        id?: string;
+        name: string;
+        description?: string;
+        price: number;
+        image_url?: string;
+        image_ratio?: number | null;
+        extra_images?: string[];
+        extra_image_ratios?: number[];
+        category: string;
+        sort_order?: number;
+        is_available?: boolean;
+        stock?: number | null;
+      };
+    }) => {
+      if (!input.item?.name?.trim()) throw new Error("اسم الصنف مطلوب");
+      return input;
+    },
+  )
+  .handler(async ({ data }) => {
+    const db = await adminClient(data.phone);
+    const payload = {
+      name: data.item.name.trim().slice(0, 120),
+      description: data.item.description?.trim().slice(0, 500) ?? null,
+      price: Number(data.item.price) || 0,
+      image_url: data.item.image_url?.trim() || null,
+      image_ratio: data.item.image_ratio ?? null,
+      extra_images: (data.item.extra_images ?? []).map((u) => u.trim()).filter(Boolean),
+      extra_image_ratios: data.item.extra_image_ratios ?? [],
+      category: data.item.category?.trim().slice(0, 60) || "حلويات",
+      sort_order: Number(data.item.sort_order) || 0,
+      is_available: data.item.is_available ?? true,
+      stock:
+        data.item.stock === null || data.item.stock === undefined
+          ? null
+          : Math.max(0, Math.floor(Number(data.item.stock) || 0)),
+    };
+    let q = data.item.id
+      ? db.from("menu_items").update(payload).eq("id", data.item.id)
+      : db.from("menu_items").insert(payload);
+    let { error } = await q;
+    if (isMissingColumn(error)) {
+      // Newer columns haven't been migrated onto the live database yet — save the rest
+      // of the item rather than failing the whole save.
+      const {
+        extra_images: _extraImages,
+        extra_image_ratios: _ratios,
+        image_ratio: _ratio,
+        stock: _stock,
+        ...rest
+      } = payload;
+      q = data.item.id
+        ? db.from("menu_items").update(rest).eq("id", data.item.id)
+        : db.from("menu_items").insert(rest);
+      ({ error } = await q);
+    }
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteMenuItem = createServerFn({ method: "POST" })
+  .inputValidator((input: { phone: string; id: string }) => input)
+  .handler(async ({ data }) => {
+    const db = await adminClient(data.phone);
+    const { error } = await db.from("menu_items").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const uploadMenuImage = createServerFn({ method: "POST" })
+  .inputValidator(
+    (input: { phone: string; filename: string; contentType: string; dataBase64: string }) => {
+      if (!input.dataBase64?.trim()) throw new Error("لا توجد صورة");
+      return input;
+    },
+  )
+  .handler(async ({ data }) => {
+    const db = await adminClient(data.phone);
+    const bytes = Buffer.from(data.dataBase64, "base64");
+    if (bytes.byteLength > 6 * 1024 * 1024)
+      throw new Error("حجم الصورة كبير جدًا (الحد الأقصى 6 ميجابايت)");
+    const ext =
+      (data.filename.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+    const path = `${crypto.randomUUID()}.${ext}`;
+    const { error } = await db.storage
+      .from("menu-photos")
+      .upload(path, bytes, { contentType: data.contentType || "image/jpeg", upsert: false });
+    if (error) throw new Error(error.message);
+    const { data: pub } = db.storage.from("menu-photos").getPublicUrl(path);
+    const ratio = getImageRatio(bytes);
+    return { url: pub.publicUrl, ratio };
+  });
+
+const DEFAULT_STORY = {
+  story_label: "قصتنا",
+  story_title: "لمسة سارة في كل قطعة",
+  story_text:
+    "من مطبخ صغير إلى مركز متكامل للحلويات، نختار أجود المكوّنات ونُزيّن كل طبق بعناية لتصل إليك قطعة تليق بفرحتك.",
+};
+
+export type Promotion = { id: string; image_url: string; ratio: number | null; sort_order: number };
+
+export const DEFAULT_HERO = {
+  hero_title: "حلويات تُصنع بالحب",
+  hero_subtitle:
+    "كيك المناسبات، كب كيك، ماكارون وحلويات عربية — نُحضّرها طازجة كل يوم لتكون مناسبتك أحلى.",
+};
+
+type SettingsRow = {
+  story_label?: string | null;
+  story_title?: string | null;
+  story_text?: string | null;
+  hero_image_url?: string | null;
+  hero_title?: string | null;
+  hero_subtitle?: string | null;
+};
+
+// Newest columns first; each step back drops the columns added by the most recent migration,
+// so the home page keeps loading even before a new migration has been run.
+const SETTINGS_COLUMN_SETS = [
+  "story_label,story_title,story_text,hero_image_url,hero_title,hero_subtitle",
+  "story_label,story_title,story_text,hero_image_url",
+  "story_label,story_title,story_text",
+];
+
+async function loadSettings(client: ReturnType<typeof publicClient>) {
+  for (const columns of SETTINGS_COLUMN_SETS) {
+    const res = await client.from("site_settings").select(columns).eq("id", 1).maybeSingle();
+    if (isMissingColumn(res.error)) continue;
+    return { error: res.error, data: res.data as unknown as SettingsRow | null };
+  }
+  return { error: null, data: null };
+}
+
+export const getStorySection = createServerFn({ method: "GET" }).handler(async () => {
+  const client = publicClient();
+  const [settings, promos] = await Promise.all([
+    loadSettings(client),
+    client
+      .from("promotions")
+      .select("id,image_url,ratio,sort_order")
+      .order("sort_order", { ascending: true }),
+  ]);
+  if (settings.error) throw new Error(settings.error.message);
+  if (promos.error) throw new Error(promos.error.message);
+  return {
+    story_label: settings.data?.story_label ?? DEFAULT_STORY.story_label,
+    story_title: settings.data?.story_title ?? DEFAULT_STORY.story_title,
+    story_text: settings.data?.story_text ?? DEFAULT_STORY.story_text,
+    hero_image_url: settings.data?.hero_image_url ?? null,
+    hero_title: settings.data?.hero_title || DEFAULT_HERO.hero_title,
+    hero_subtitle: settings.data?.hero_subtitle || DEFAULT_HERO.hero_subtitle,
+    images: (promos.data ?? []) as Promotion[],
+  };
+});
+
+export const saveStorySettings = createServerFn({ method: "POST" })
+  .inputValidator(
+    (input: { phone: string; story_label: string; story_title: string; story_text: string }) =>
+      input,
+  )
+  .handler(async ({ data }) => {
+    const db = await adminClient(data.phone);
+    const { error } = await db.from("site_settings").upsert({
+      id: 1,
+      story_label: data.story_label.trim().slice(0, 60) || DEFAULT_STORY.story_label,
+      story_title: data.story_title.trim().slice(0, 120) || DEFAULT_STORY.story_title,
+      story_text: data.story_text.trim().slice(0, 800) || DEFAULT_STORY.story_text,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const addPromotion = createServerFn({ method: "POST" })
+  .inputValidator((input: { phone: string; image_url: string; ratio?: number | null }) => {
+    if (!input.image_url?.trim()) throw new Error("رابط الصورة مطلوب");
+    return input;
+  })
+  .handler(async ({ data }) => {
+    const db = await adminClient(data.phone);
+    const { data: last, error: lastError } = await db
+      .from("promotions")
+      .select("sort_order")
+      .order("sort_order", { ascending: false })
+      .limit(1);
+    if (lastError) throw new Error(lastError.message);
+    const nextOrder = (last?.[0]?.sort_order ?? -1) + 1;
+    const payload = {
+      image_url: data.image_url.trim(),
+      ratio: data.ratio ?? null,
+      sort_order: nextOrder,
+    };
+    let { error } = await db.from("promotions").insert(payload);
+    if (error?.code === "PGRST204") {
+      // The ratio column hasn't been migrated onto the live database yet.
+      const { ratio: _ratio, ...withoutRatio } = payload;
+      ({ error } = await db.from("promotions").insert(withoutRatio));
+    }
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deletePromotion = createServerFn({ method: "POST" })
+  .inputValidator((input: { phone: string; id: string }) => input)
+  .handler(async ({ data }) => {
+    const db = await adminClient(data.phone);
+    const { error } = await db.from("promotions").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const saveHeroImage = createServerFn({ method: "POST" })
+  .inputValidator((input: { phone: string; hero_image_url: string | null }) => input)
+  .handler(async ({ data }) => {
+    const db = await adminClient(data.phone);
+    const { error } = await db
+      .from("site_settings")
+      .upsert({ id: 1, hero_image_url: data.hero_image_url?.trim() || null });
+    if (isMissingColumn(error)) {
+      throw new Error("يرجى تشغيل تحديث قاعدة البيانات أولاً (من محادثة Lovable)");
+    }
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const saveHeroText = createServerFn({ method: "POST" })
+  .inputValidator((input: { phone: string; hero_title: string; hero_subtitle: string }) => input)
+  .handler(async ({ data }) => {
+    const db = await adminClient(data.phone);
+    const { error } = await db.from("site_settings").upsert({
+      id: 1,
+      hero_title: data.hero_title.trim().slice(0, 120) || DEFAULT_HERO.hero_title,
+      hero_subtitle: data.hero_subtitle.trim().slice(0, 400) || DEFAULT_HERO.hero_subtitle,
+    });
+    if (isMissingColumn(error)) {
+      throw new Error("يرجى تشغيل تحديث قاعدة البيانات أولاً (من محادثة Lovable)");
+    }
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
