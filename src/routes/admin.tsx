@@ -6,9 +6,10 @@ import { MenuPanel } from "@/components/admin/MenuPanel";
 import { StoryPanel } from "@/components/admin/StoryPanel";
 import logoAsset from "@/assets/logo.jpg.asset.json";
 
-const STORAGE_KEY = "sara-admin-phone";
-
 export const Route = createFileRoute("/admin")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    phone: typeof search.phone === "string" ? search.phone : undefined,
+  }),
   head: () => ({
     meta: [{ title: "لوحة تحكم مركز سارة للحلويات" }],
   }),
@@ -16,44 +17,23 @@ export const Route = createFileRoute("/admin")({
 });
 
 function AdminPage() {
-  // listOrders doubles as the server-side admin check: it throws unless the phone is the
-  // admin code, so the client never needs to know that code itself.
+  const { phone: urlPhone } = Route.useSearch();
   const verify = useServerFn(listOrders);
 
   const [phone, setPhone] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
   const [tab, setTab] = useState<"menu" | "story">("menu");
-  const [gateInput, setGateInput] = useState("");
-  const [gateError, setGateError] = useState<string | null>(null);
-  const [gateBusy, setGateBusy] = useState(false);
 
   useEffect(() => {
-    const stored = typeof window !== "undefined" ? sessionStorage.getItem(STORAGE_KEY) : null;
-    if (!stored) {
+    if (!urlPhone) {
       setChecking(false);
       return;
     }
-    verify({ data: { phone: stored } })
-      .then(() => setPhone(stored))
-      .catch(() => sessionStorage.removeItem(STORAGE_KEY))
+    verify({ data: { phone: urlPhone } })
+      .then(() => setPhone(urlPhone))
+      .catch(() => setPhone(null))
       .finally(() => setChecking(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function handleGate(e: React.FormEvent) {
-    e.preventDefault();
-    setGateBusy(true);
-    setGateError(null);
-    try {
-      await verify({ data: { phone: gateInput } });
-      sessionStorage.setItem(STORAGE_KEY, gateInput);
-      setPhone(gateInput);
-    } catch {
-      setGateError("رقم غير صحيح");
-    } finally {
-      setGateBusy(false);
-    }
-  }
+  }, [urlPhone]);
 
   if (checking) {
     return (
@@ -64,44 +44,7 @@ function AdminPage() {
   }
 
   if (!phone) {
-    return (
-      <div
-        className="flex min-h-screen items-center justify-center px-4"
-        style={{ background: "var(--gradient-petal)" }}
-      >
-        <form
-          onSubmit={handleGate}
-          className="w-full max-w-sm rounded-3xl bg-card p-8 text-center shadow-[var(--shadow-card)]"
-        >
-          <img src={logoAsset.url} alt="" className="mx-auto h-16 w-16 object-contain" />
-          <h1 className="mt-4 text-xl text-ink">دخول لوحة التحكم</h1>
-          <input
-            type="tel"
-            inputMode="tel"
-            dir="ltr"
-            value={gateInput}
-            onChange={(e) => setGateInput(e.target.value)}
-            placeholder="رقم الهاتف"
-            className="mt-5 w-full rounded-2xl border border-border bg-background px-4 py-3 text-center outline-none focus:border-primary"
-          />
-          {gateError && <p className="mt-2 text-sm text-destructive">{gateError}</p>}
-          <button
-            type="submit"
-            disabled={gateBusy}
-            className="mt-5 w-full rounded-full px-6 py-3 font-medium text-primary-foreground disabled:opacity-60"
-            style={{ backgroundImage: "var(--gradient-pink)" }}
-          >
-            {gateBusy ? "جارِ التحقق..." : "دخول"}
-          </button>
-          <a
-            href="/"
-            className="mt-4 inline-block text-sm text-muted-foreground hover:text-primary"
-          >
-            العودة للموقع
-          </a>
-        </form>
-      </div>
-    );
+    return null;
   }
 
   return (
