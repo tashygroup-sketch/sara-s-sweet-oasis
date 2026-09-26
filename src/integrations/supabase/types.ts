@@ -92,6 +92,51 @@ export type Database = {
         }
         Relationships: []
       }
+      promotions: {
+        Row: {
+          created_at: string
+          id: string
+          image_url: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_url: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_url?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      site_settings: {
+        Row: {
+          id: number
+          story_label: string
+          story_text: string
+          story_title: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          story_label?: string
+          story_text?: string
+          story_title?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          story_label?: string
+          story_text?: string
+          story_title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
