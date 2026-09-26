@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCart } from "@/lib/cart";
 import { buildWhatsAppDraft } from "@/lib/whatsapp";
 import { createOrder } from "@/lib/shop.functions";
@@ -11,6 +12,7 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
   const { lines, total, clear } = useCart();
   const submit = useServerFn(createOrder);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [form, setForm] = useState(EMPTY_FORM);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +84,7 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
           address: form.address,
           notes: form.notes,
           ...(locationUrl ? { location_url: locationUrl } : {}),
-          items: lines.map((l) => ({ name: l.name, qty: l.qty, price: l.price })),
+          items: lines.map((l) => ({ id: l.id, name: l.name, qty: l.qty, price: l.price })),
           total,
         },
       });
@@ -107,6 +109,8 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
       setDraftUrl(url);
       window.open(url, "_blank");
       clear();
+      // stock just went down on the server; refresh so sold-out items grey out right away
+      queryClient.invalidateQueries({ queryKey: ["menu"] });
     } catch (err) {
       setError(err instanceof Error ? err.message : "تعذّر إرسال الحجز");
     } finally {
