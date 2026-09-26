@@ -183,7 +183,9 @@ function Home() {
         {story.images.length > 0 && (
           <Reveal delay={280}>
             <div className="relative left-1/2 right-1/2 -mx-[50vw] mt-12 w-screen">
-              <Carousel images={story.images.map((img) => img.image_url)} />
+              <Carousel
+                images={story.images.map((img) => ({ url: img.image_url, ratio: img.ratio }))}
+              />
             </div>
           </Reveal>
         )}
@@ -236,8 +238,16 @@ function Home() {
                     <article className="group overflow-hidden rounded-3xl bg-card shadow-[var(--shadow-card)]">
                       {item.image_url || item.extra_images.length > 0 ? (
                         <Carousel
-                          images={[item.image_url, ...item.extra_images].filter(
-                            (src): src is string => Boolean(src),
+                          images={[
+                            item.image_url
+                              ? { url: item.image_url, ratio: item.image_ratio }
+                              : null,
+                            ...item.extra_images.map((url, idx) => ({
+                              url,
+                              ratio: item.extra_image_ratios[idx] ?? null,
+                            })),
+                          ].filter(
+                            (img): img is { url: string; ratio: number | null } => img !== null,
                           )}
                         />
                       ) : null}
