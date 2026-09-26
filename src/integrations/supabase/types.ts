@@ -15,6 +15,7 @@ export type Database = {
           description: string | null;
           id: string;
           image_url: string | null;
+          extra_images: string[];
           is_available: boolean;
           name: string;
           price: number;
@@ -27,6 +28,7 @@ export type Database = {
           description?: string | null;
           id?: string;
           image_url?: string | null;
+          extra_images?: string[];
           is_available?: boolean;
           name: string;
           price?: number;
@@ -39,6 +41,7 @@ export type Database = {
           description?: string | null;
           id?: string;
           image_url?: string | null;
+          extra_images?: string[];
           is_available?: boolean;
           name?: string;
           price?: number;
