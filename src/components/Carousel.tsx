@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 
-// Detects a photo's own height/width ratio independently of the rendered <img> tag,
-// so a photo already sitting in the browser's cache can't finish loading before we're
-// listening for it (a real gap in the previous approach, which used the rendered
-// image's own onLoad event and could miss cached photos entirely).
-function useImageRatio(src: string, onRatio: (ratio: number) => void) {
+export type CarouselImage = { url: string; ratio?: number | null };
+
+// Fallback only: for photos uploaded before their ratio was measured and stored in the
+// database, we still need *some* way to size the frame. This probes the photo directly
+// with a detached Image object (handler attached before src is set, so a cached photo
+// can't finish loading before we're listening). New uploads skip this path entirely —
+// their ratio is already known from the moment the page loads.
+function useFallbackRatio(src: string, skip: boolean, onRatio: (ratio: number) => void) {
   useEffect(() => {
+    if (skip) return;
     let cancelled = false;
     const probe = new Image();
     probe.onload = () => {
@@ -21,24 +25,29 @@ function useImageRatio(src: string, onRatio: (ratio: number) => void) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src]);
+  }, [src, skip]);
 }
 
-function Slide({ src, onRatio }: { src: string; onRatio: (ratio: number) => void }) {
-  useImageRatio(src, onRatio);
+function Slide({
+  image,
+  onMeasured,
+}: {
+  image: CarouselImage;
+  onMeasured: (ratio: number) => void;
+}) {
+  const known = typeof image.ratio === "number" ? image.ratio : null;
+  useFallbackRatio(image.url, known !== null, onMeasured);
   return (
     <div className="w-full shrink-0 snap-center">
-      <img src={src} alt="" className="h-full w-full object-contain" />
+      <img src={image.url} alt="" className="h-full w-full object-contain" />
     </div>
   );
 }
 
-export function Carousel({ images }: { images: string[] }) {
+export function Carousel({ images }: { images: CarouselImage[] }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
-  // Each photo's own height/width ratio, captured once it loads, so the frame can match
-  // that exact photo instead of cropping it or leaving empty space around it.
-  const [ratios, setRatios] = useState<Record<number, number>>({});
+  const [measured, setMeasured] = useState<Record<number, number>>({});
 
   function handleScroll() {
     const el = trackRef.current;
@@ -54,7 +63,9 @@ export function Carousel({ images }: { images: string[] }) {
 
   if (images.length === 0) return null;
 
-  const ratio = ratios[active] ?? 0.8;
+  const activeImage = images[active];
+  const ratio =
+    (typeof activeImage?.ratio === "number" ? activeImage.ratio : null) ?? measured[active] ?? 0.8;
 
   return (
     <div>
@@ -64,8 +75,12 @@ export function Carousel({ images }: { images: string[] }) {
         style={{ aspectRatio: `1 / ${ratio}` }}
         className="scrollbar-none flex snap-x snap-mandatory overflow-x-auto transition-[aspect-ratio] duration-300 ease-out"
       >
-        {images.map((src, i) => (
-          <Slide key={src} src={src} onRatio={(r) => setRatios((prev) => ({ ...prev, [i]: r }))} />
+        {images.map((img, i) => (
+          <Slide
+            key={img.url}
+            image={img}
+            onMeasured={(r) => setMeasured((prev) => ({ ...prev, [i]: r }))}
+          />
         ))}
       </div>
       {images.length > 1 && (

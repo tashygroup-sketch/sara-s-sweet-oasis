@@ -19,18 +19,18 @@ export function LogoIntro() {
   if (gone) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-background">
-      {/* two gate panels that swing open, left and right, instead of the page sliding up */}
-      <div className="intro-gate-left absolute inset-y-0 left-0 w-1/2 overflow-hidden bg-background">
+    <div className="fixed inset-0 z-50 overflow-hidden">
+      {/* two frosted-glass panels over the real page, swinging open to reveal it in focus */}
+      <div className="intro-gate-left absolute inset-y-0 left-0 w-1/2 overflow-hidden backdrop-blur-2xl">
         <div
-          className="absolute inset-y-0 left-0 w-[200vw] opacity-70"
-          style={{ background: "var(--gradient-petal)" }}
+          className="absolute inset-y-0 left-0 w-[200vw]"
+          style={{ background: "var(--gradient-petal)", opacity: 0.55 }}
         />
       </div>
-      <div className="intro-gate-right absolute inset-y-0 right-0 w-1/2 overflow-hidden bg-background">
+      <div className="intro-gate-right absolute inset-y-0 right-0 w-1/2 overflow-hidden backdrop-blur-2xl">
         <div
-          className="absolute inset-y-0 right-0 w-[200vw] opacity-70"
-          style={{ background: "var(--gradient-petal)" }}
+          className="absolute inset-y-0 right-0 w-[200vw]"
+          style={{ background: "var(--gradient-petal)", opacity: 0.55 }}
         />
       </div>
 
