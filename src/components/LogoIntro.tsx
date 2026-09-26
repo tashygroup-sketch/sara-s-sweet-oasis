@@ -32,12 +32,14 @@ export function LogoIntro() {
             alt="مركز سارة للحلويات"
             width={220}
             height={220}
-            className="intro-seal scallop relative h-44 w-44 rounded-full object-cover shadow-[var(--shadow-soft)] sm:h-56 sm:w-56"
+            className="intro-seal relative h-44 w-44 object-contain drop-shadow-[0_18px_40px_rgba(0,0,0,0.25)] sm:h-56 sm:w-56"
           />
         </div>
         <h1 className="intro-text mt-8 text-3xl text-ink sm:text-4xl">مركز سارة للحلويات</h1>
         <span className="intro-text mt-3 block h-px w-32 bg-primary/70" />
-        <p className="intro-text mt-3 text-sm tracking-[0.3em] text-muted-foreground">SARA CENTER FOR SWEETS</p>
+        <p className="intro-text mt-3 text-sm tracking-[0.3em] text-muted-foreground">
+          SARA CENTER FOR SWEETS
+        </p>
       </div>
     </div>
   );
