@@ -39,10 +39,12 @@ export const Route = createFileRoute("/")({
 function Home() {
   const { data: menu } = useSuspenseQuery(menuQuery);
   const { data: story } = useSuspenseQuery(storyQuery);
+  const heroImage = story.hero_image_url;
   const { lines, add, remove, setQty, count, total } = useCart();
   const [booking, setBooking] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [justAdded, setJustAdded] = useState<string | null>(null);
+  const [limitHit, setLimitHit] = useState<string | null>(null);
   const [menuPrompt, setMenuPrompt] = useState(false);
 
   const available = menu.filter((m) => m.is_available);
@@ -58,7 +60,25 @@ function Home() {
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  // null = stock not tracked. Used to grey out sold-out items and cap cart quantities.
+  const stockById = new Map(menu.map((m) => [m.id, m.stock]));
+  const qtyInCart = (id: string) => lines.find((l) => l.id === id)?.qty ?? 0;
+  const atLimit = (id: string) => {
+    const stock = stockById.get(id);
+    return stock !== null && stock !== undefined && qtyInCart(id) >= stock;
+  };
+  // Lines asking for more than is left (e.g. it sold out while sitting in the cart).
+  const overStockLines = lines.filter((l) => {
+    const stock = stockById.get(l.id);
+    return stock !== null && stock !== undefined && l.qty > stock;
+  });
+
   function handleAdd(item: (typeof available)[number]) {
+    if (atLimit(item.id)) {
+      setLimitHit(item.id);
+      window.setTimeout(() => setLimitHit((cur) => (cur === item.id ? null : cur)), 1600);
+      return;
+    }
     add({
       id: item.id,
       name: item.name,
@@ -134,11 +154,27 @@ function Home() {
 
       {/* hero */}
       <section className="relative isolate overflow-hidden px-4 pt-16 pb-24 text-center">
-        <div
-          className="pointer-events-none absolute inset-0 -z-10"
-          style={{ background: "var(--gradient-petal)" }}
-        />
-        <div className="pointer-events-none absolute -top-16 -right-10 -z-10 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
+        {heroImage ? (
+          <>
+            {/* admin's photo: slightly blurred (scaled up so the blur doesn't leave soft edges)
+                under a dark tint, so the white text and logo stay readable on any photo */}
+            <img
+              src={heroImage}
+              alt=""
+              aria-hidden
+              className="pointer-events-none absolute inset-0 -z-20 h-full w-full scale-110 object-cover blur-[3px]"
+            />
+            <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-black/60 via-black/50 to-black/70" />
+          </>
+        ) : (
+          <>
+            <div
+              className="pointer-events-none absolute inset-0 -z-10"
+              style={{ background: "var(--gradient-petal)" }}
+            />
+            <div className="pointer-events-none absolute -top-16 -right-10 -z-10 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
+          </>
+        )}
         <Reveal variant="zoom">
           <img
             src={logoAsset.url}
@@ -149,10 +185,18 @@ function Home() {
           />
         </Reveal>
         <Reveal delay={150}>
-          <h1 className="mt-8 text-4xl leading-tight text-ink sm:text-5xl">حلويات تُصنع بالحب</h1>
+          <h1
+            className={`mt-8 text-4xl leading-tight sm:text-5xl ${
+              heroImage ? "text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.5)]" : "text-ink"
+            }`}
+          >
+            حلويات تُصنع بالحب
+          </h1>
         </Reveal>
         <Reveal delay={280}>
-          <p className="mx-auto mt-4 max-w-md text-muted-foreground">
+          <p
+            className={`mx-auto mt-4 max-w-md ${heroImage ? "text-white/85" : "text-muted-foreground"}`}
+          >
             كيك المناسبات، كب كيك، ماكارون وحلويات عربية — نُحضّرها طازجة كل يوم لتكون مناسبتك أحلى.
           </p>
         </Reveal>
@@ -182,7 +226,7 @@ function Home() {
         </Reveal>
         {story.images.length > 0 && (
           <Reveal delay={280}>
-            <div className="relative left-1/2 right-1/2 -mx-[50vw] mt-12 w-screen">
+            <div className="relative left-1/2 right-1/2 -mx-[50vw] mt-12 w-screen md:static md:mx-auto md:w-full md:max-w-xl">
               <Carousel
                 images={story.images.map((img) => ({ url: img.image_url, ratio: img.ratio }))}
               />
@@ -235,7 +279,16 @@ function Home() {
                 .filter((m) => m.category === cat)
                 .map((item, i) => (
                   <Reveal key={item.id} delay={i * 110 + ci * 40} variant="up">
-                    <article className="group overflow-hidden rounded-3xl bg-card shadow-[var(--shadow-card)]">
+                    <article
+                      className={`group relative overflow-hidden rounded-3xl bg-card shadow-[var(--shadow-card)] transition ${
+                        item.stock === 0 ? "opacity-60 grayscale" : ""
+                      }`}
+                    >
+                      {item.stock === 0 && (
+                        <span className="absolute top-3 right-3 z-10 rounded-full bg-ink/80 px-3 py-1 text-xs text-white">
+                          نفذت الكمية
+                        </span>
+                      )}
                       {item.image_url || item.extra_images.length > 0 ? (
                         <Carousel
                           images={[
@@ -260,16 +313,31 @@ function Home() {
                           <span className="font-bold text-primary">
                             {Number(item.price).toFixed(2)} د.ل
                           </span>
-                          <button
-                            onClick={() => handleAdd(item)}
-                            className={`rounded-full border px-4 py-2 text-sm transition-colors ${
-                              justAdded === item.id
-                                ? "border-primary bg-primary text-primary-foreground"
-                                : "border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-                            }`}
-                          >
-                            {justAdded === item.id ? "✓ أضيفت للسلة" : "أضف للسلة"}
-                          </button>
+                          {item.stock === 0 ? (
+                            <button
+                              disabled
+                              className="cursor-not-allowed rounded-full border border-border px-4 py-2 text-sm text-muted-foreground"
+                            >
+                              نفذت الكمية
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleAdd(item)}
+                              className={`rounded-full border px-4 py-2 text-sm transition-colors ${
+                                limitHit === item.id
+                                  ? "border-border text-muted-foreground"
+                                  : justAdded === item.id
+                                    ? "border-primary bg-primary text-primary-foreground"
+                                    : "border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                              }`}
+                            >
+                              {limitHit === item.id
+                                ? `المتوفر ${item.stock} فقط`
+                                : justAdded === item.id
+                                  ? "✓ أضيفت للسلة"
+                                  : "أضف للسلة"}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </article>
@@ -366,6 +434,13 @@ function Home() {
                       <div className="flex-1">
                         <p className="text-ink">{l.name}</p>
                         <p className="text-sm text-muted-foreground">{l.price.toFixed(2)} د.ل</p>
+                        {overStockLines.some((o) => o.id === l.id) && (
+                          <p className="text-xs text-destructive">
+                            {stockById.get(l.id) === 0
+                              ? "نفذت الكمية — يرجى إزالته"
+                              : `المتوفر ${stockById.get(l.id)} فقط`}
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <button
@@ -377,7 +452,8 @@ function Home() {
                         <span>{l.qty}</span>
                         <button
                           onClick={() => setQty(l.id, l.qty + 1)}
-                          className="h-8 w-8 rounded-full bg-muted"
+                          disabled={atLimit(l.id)}
+                          className="h-8 w-8 rounded-full bg-muted disabled:opacity-40"
                         >
                           +
                         </button>
@@ -396,12 +472,18 @@ function Home() {
                   <span>الإجمالي</span>
                   <span>{total.toFixed(2)} د.ل</span>
                 </div>
+                {overStockLines.length > 0 && (
+                  <p className="mt-4 text-center text-sm text-destructive">
+                    بعض الأصناف لم تعد متوفرة بالكمية المطلوبة، يرجى تعديل السلة
+                  </p>
+                )}
                 <button
                   onClick={() => {
                     setCartOpen(false);
                     setBooking(true);
                   }}
-                  className="mt-5 w-full rounded-full px-6 py-3 font-medium text-primary-foreground"
+                  disabled={overStockLines.length > 0}
+                  className="mt-5 w-full rounded-full px-6 py-3 font-medium text-primary-foreground disabled:opacity-50"
                   style={{ backgroundImage: "var(--gradient-pink)" }}
                 >
                   احجز الآن
