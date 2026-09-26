@@ -21,6 +21,7 @@ export type OrderRow = {
   address: string | null;
   delivery_date: string | null;
   notes: string | null;
+  location_url: string | null;
   items: { name: string; qty: number; price: number }[];
   total: number;
   status: string;
@@ -64,39 +65,40 @@ export const createOrder = createServerFn({ method: "POST" })
     (input: {
       customer_name: string;
       phone: string;
-      address?: string;
-      delivery_date?: string;
+      address: string;
       notes?: string;
+      location_url?: string;
       items: { name: string; qty: number; price: number }[];
       total: number;
     }) => {
-      if (!input.customer_name?.trim()) throw new Error("الاسم مطلوب");
-      if (!input.phone?.trim()) throw new Error("رقم الهاتف مطلوب");
+      const name = input.customer_name?.trim();
+      const phone = input.phone?.trim();
+      const address = input.address?.trim();
+      if (!name) throw new Error("الاسم مطلوب");
+      if (!phone || !/^(091|092|093|094)\d{7}$/.test(phone)) {
+        throw new Error("رقم الهاتف يجب أن يتكون من 10 أرقام ويبدأ بـ 091 أو 092 أو 093 أو 094");
+      }
+      if (!address) throw new Error("العنوان مطلوب");
       return input;
     },
   )
   .handler(async ({ data }) => {
-    const { isAdminPhone } = await import("@/lib/admin.server");
-    if (isAdminPhone(data.phone)) {
-      // Admin trigger: don't log this as a real customer order.
-      return { id: "admin", isAdmin: true as const };
-    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin
       .from("orders")
       .insert({
         customer_name: data.customer_name.trim().slice(0, 120),
         phone: data.phone.trim().slice(0, 40),
-        address: data.address?.trim().slice(0, 300) ?? null,
-        delivery_date: data.delivery_date?.trim().slice(0, 60) ?? null,
+        address: data.address.trim().slice(0, 300),
         notes: data.notes?.trim().slice(0, 600) ?? null,
+        location_url: data.location_url?.trim().slice(0, 300) ?? null,
         items: data.items ?? [],
         total: data.total ?? 0,
       })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
-    return { id: row.id as string, isAdmin: false as const };
+    return { id: row.id as string };
   });
 
 export const listOrders = createServerFn({ method: "POST" })

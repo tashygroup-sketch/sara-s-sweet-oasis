@@ -6,8 +6,8 @@ export type BookingInfo = {
   name: string;
   phone: string;
   address: string;
-  date: string;
   notes: string;
+  locationUrl?: string;
 };
 
 export function buildWhatsAppDraft(info: BookingInfo, lines: CartLine[], total: number) {
@@ -20,8 +20,8 @@ export function buildWhatsAppDraft(info: BookingInfo, lines: CartLine[], total: 
     "",
     `الاسم: ${info.name}`,
     `الهاتف: ${info.phone}`,
-    info.address ? `العنوان: ${info.address}` : null,
-    info.date ? `تاريخ الاستلام: ${info.date}` : null,
+    `العنوان: ${info.address}`,
+    info.locationUrl ? `الموقع على الخريطة: ${info.locationUrl}` : null,
     "",
     "الطلبات:",
     items,
