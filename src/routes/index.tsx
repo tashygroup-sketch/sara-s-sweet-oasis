@@ -39,7 +39,7 @@ export const Route = createFileRoute("/")({
 function Home() {
   const { data: menu } = useSuspenseQuery(menuQuery);
   const { data: story } = useSuspenseQuery(storyQuery);
-  const { lines, add, setQty, count, total } = useCart();
+  const { lines, add, remove, setQty, count, total } = useCart();
   const [booking, setBooking] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [justAdded, setJustAdded] = useState<string | null>(null);
@@ -182,11 +182,8 @@ function Home() {
         </Reveal>
         {story.images.length > 0 && (
           <Reveal delay={280}>
-            <div className="mx-auto mt-12 max-w-md overflow-hidden rounded-3xl shadow-[var(--shadow-card)]">
-              <Carousel
-                images={story.images.map((img) => img.image_url)}
-                heightClassName="h-72 sm:h-96"
-              />
+            <div className="relative left-1/2 right-1/2 -mx-[50vw] mt-12 w-screen">
+              <Carousel images={story.images.map((img) => img.image_url)} />
             </div>
           </Reveal>
         )}
@@ -242,7 +239,6 @@ function Home() {
                           images={[item.image_url, ...item.extra_images].filter(
                             (src): src is string => Boolean(src),
                           )}
-                          heightClassName="h-64"
                         />
                       ) : null}
                       <div className="p-5">
@@ -374,6 +370,13 @@ function Home() {
                           className="h-8 w-8 rounded-full bg-muted"
                         >
                           +
+                        </button>
+                        <button
+                          onClick={() => remove(l.id)}
+                          aria-label="إزالة الصنف"
+                          className="mr-1 flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-destructive"
+                        >
+                          ✕
                         </button>
                       </div>
                     </div>
