@@ -19,6 +19,7 @@ export type Database = {
           extra_images: string[];
           extra_image_ratios: number[];
           is_available: boolean;
+          stock: number | null;
           name: string;
           price: number;
           sort_order: number;
@@ -34,6 +35,7 @@ export type Database = {
           extra_images?: string[];
           extra_image_ratios?: number[];
           is_available?: boolean;
+          stock?: number | null;
           name: string;
           price?: number;
           sort_order?: number;
@@ -49,6 +51,7 @@ export type Database = {
           extra_images?: string[];
           extra_image_ratios?: number[];
           is_available?: boolean;
+          stock?: number | null;
           name?: string;
           price?: number;
           sort_order?: number;
@@ -124,6 +127,7 @@ export type Database = {
       };
       site_settings: {
         Row: {
+          hero_image_url: string | null;
           id: number;
           story_label: string;
           story_text: string;
@@ -131,6 +135,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          hero_image_url?: string | null;
           id?: number;
           story_label?: string;
           story_text?: string;
@@ -138,6 +143,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          hero_image_url?: string | null;
           id?: number;
           story_label?: string;
           story_text?: string;
@@ -151,7 +157,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      reserve_stock: {
+        Args: { p_items: Json };
+        Returns: undefined;
+      };
     };
     Enums: {
       [_ in never]: never;
