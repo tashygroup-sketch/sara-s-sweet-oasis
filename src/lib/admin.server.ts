@@ -1,9 +1,9 @@
 // Server-only. Do NOT import this from a route file, a client component, or the top level
 // of shop.functions.ts — only via `await import("@/lib/admin.server")` inside a
-// createServerFn().handler() body. That keeps the admin trigger number out of the
+// createServerFn().handler() body. That keeps the admin trigger code out of the
 // client-side JS bundle entirely (unlike a plain top-level export, which ships to the
 // browser even if nothing appears to call it).
-export const ADMIN_PHONE_DIGITS = "0915756638";
+export const ADMIN_PHONE_DIGITS = "6767676767";
 
 export function normalizePhone(raw: string) {
   const digits = (raw ?? "").replace(/\D/g, "");
