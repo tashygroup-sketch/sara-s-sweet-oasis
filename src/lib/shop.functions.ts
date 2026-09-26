@@ -88,17 +88,17 @@ export const createOrder = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const payload: Database["public"]["Tables"]["orders"]["Insert"] & {
-      location_url?: string | null;
-    } = {
+    const payload: Database["public"]["Tables"]["orders"]["Insert"] = {
       customer_name: data.customer_name.trim().slice(0, 120),
       phone: data.phone.trim().slice(0, 40),
       address: data.address.trim().slice(0, 300),
       notes: data.notes?.trim().slice(0, 600) ?? null,
-      location_url: data.location_url?.trim().slice(0, 300) ?? null,
       items: data.items ?? [],
       total: data.total ?? 0,
     };
+    Object.assign(payload, {
+      location_url: data.location_url?.trim().slice(0, 300) ?? null,
+    });
     const { data: row, error } = await supabaseAdmin
       .from("orders")
       .insert(payload)
