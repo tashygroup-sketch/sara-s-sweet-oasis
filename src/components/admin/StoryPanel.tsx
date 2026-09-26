@@ -9,6 +9,7 @@ import {
   uploadMenuImage,
 } from "@/lib/shop.functions";
 import { fileToCompressedBase64 } from "@/lib/image";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 type StoryData = Awaited<ReturnType<typeof getStorySection>>;
 
@@ -87,8 +88,12 @@ export function StoryPanel({ phone }: { phone: string }) {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("حذف هذه الصورة؟")) return;
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+
+  async function confirmDelete() {
+    const id = deleteTarget;
+    setDeleteTarget(null);
+    if (!id) return;
     try {
       await removeImage({ data: { phone, id } });
       await load();
@@ -168,7 +173,7 @@ export function StoryPanel({ phone }: { phone: string }) {
             <div key={img.id} className="relative shrink-0">
               <img src={img.image_url} alt="" className="h-32 w-40 rounded-2xl object-cover" />
               <button
-                onClick={() => handleDelete(img.id)}
+                onClick={() => setDeleteTarget(img.id)}
                 className="absolute top-1.5 left-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-ink/70 text-sm text-white"
                 aria-label="حذف الصورة"
               >
@@ -181,6 +186,13 @@ export function StoryPanel({ phone }: { phone: string }) {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="حذف هذه الصورة؟"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
