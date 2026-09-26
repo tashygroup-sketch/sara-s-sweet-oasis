@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
+import { imageSize } from "image-size";
 import type { Database } from "@/integrations/supabase/types";
 
 export const WHATSAPP_NUMBER = "218913411424";
@@ -18,32 +19,24 @@ export type MenuItem = {
   is_available: boolean;
 };
 
-// Reads a JPEG's real width/height straight from its file header, without any image
-// library — works in the Workers runtime and needs no client round-trip. Every upload
-// is compressed to JPEG client-side before it reaches here, so this is the only format
-// that needs to be supported.
-function getJpegRatio(bytes: Uint8Array): number | null {
-  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
-  let offset = 2;
-  while (offset + 9 < bytes.length) {
-    if (bytes[offset] !== 0xff) return null;
-    const marker = bytes[offset + 1]!;
-    const isSof =
-      (marker >= 0xc0 && marker <= 0xc3) ||
-      (marker >= 0xc5 && marker <= 0xc7) ||
-      (marker >= 0xc9 && marker <= 0xcb) ||
-      (marker >= 0xcd && marker <= 0xcf);
-    if (isSof) {
-      const height = (bytes[offset + 5]! << 8) | bytes[offset + 6]!;
-      const width = (bytes[offset + 7]! << 8) | bytes[offset + 8]!;
-      if (width > 0 && height > 0) return height / width;
-      return null;
-    }
-    const length = (bytes[offset + 2]! << 8) | bytes[offset + 3]!;
-    if (length < 2) return null;
-    offset += 2 + length;
+// Measures a photo's real shape once, at upload time, using a library that's already
+// battle-tested against real-world encoder output (my own first attempt at this used a
+// hand-rolled parser that worked on my own test files but evidently missed something in
+// what actual phone/Chrome-produced JPEGs look like). Also corrects for EXIF orientation:
+// a photo tagged as rotated 90°/270° has its width and height swapped from how it's
+// actually displayed, and that swap has to be applied here to get the true visual ratio.
+function getImageRatio(bytes: Uint8Array): number | null {
+  try {
+    const result = imageSize(bytes);
+    if (!result.width || !result.height) return null;
+    const rotated =
+      result.orientation != null && result.orientation >= 5 && result.orientation <= 8;
+    const width = rotated ? result.height : result.width;
+    const height = rotated ? result.width : result.height;
+    return height / width;
+  } catch {
+    return null;
   }
-  return null;
 }
 
 export type OrderRow = {
@@ -256,7 +249,7 @@ export const uploadMenuImage = createServerFn({ method: "POST" })
       .upload(path, bytes, { contentType: data.contentType || "image/jpeg", upsert: false });
     if (error) throw new Error(error.message);
     const { data: pub } = db.storage.from("menu-photos").getPublicUrl(path);
-    const ratio = getJpegRatio(bytes);
+    const ratio = getImageRatio(bytes);
     return { url: pub.publicUrl, ratio };
   });
 
