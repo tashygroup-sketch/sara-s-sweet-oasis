@@ -10,11 +10,41 @@ export type MenuItem = {
   description: string | null;
   price: number;
   image_url: string | null;
+  image_ratio: number | null;
   extra_images: string[];
+  extra_image_ratios: number[];
   category: string;
   sort_order: number;
   is_available: boolean;
 };
+
+// Reads a JPEG's real width/height straight from its file header, without any image
+// library — works in the Workers runtime and needs no client round-trip. Every upload
+// is compressed to JPEG client-side before it reaches here, so this is the only format
+// that needs to be supported.
+function getJpegRatio(bytes: Uint8Array): number | null {
+  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
+  let offset = 2;
+  while (offset + 9 < bytes.length) {
+    if (bytes[offset] !== 0xff) return null;
+    const marker = bytes[offset + 1]!;
+    const isSof =
+      (marker >= 0xc0 && marker <= 0xc3) ||
+      (marker >= 0xc5 && marker <= 0xc7) ||
+      (marker >= 0xc9 && marker <= 0xcb) ||
+      (marker >= 0xcd && marker <= 0xcf);
+    if (isSof) {
+      const height = (bytes[offset + 5]! << 8) | bytes[offset + 6]!;
+      const width = (bytes[offset + 7]! << 8) | bytes[offset + 8]!;
+      if (width > 0 && height > 0) return height / width;
+      return null;
+    }
+    const length = (bytes[offset + 2]! << 8) | bytes[offset + 3]!;
+    if (length < 2) return null;
+    offset += 2 + length;
+  }
+  return null;
+}
 
 export type OrderRow = {
   id: string;
@@ -56,7 +86,9 @@ async function adminClient(phone: string) {
 export const getMenu = createServerFn({ method: "GET" }).handler(async () => {
   const { data, error } = await publicClient()
     .from("menu_items")
-    .select("id,name,description,price,image_url,extra_images,category,sort_order,is_available")
+    .select(
+      "id,name,description,price,image_url,image_ratio,extra_images,extra_image_ratios,category,sort_order,is_available",
+    )
     .order("sort_order", { ascending: true });
   if (error) throw new Error(error.message);
   return (data ?? []) as MenuItem[];
@@ -147,7 +179,9 @@ export const saveMenuItem = createServerFn({ method: "POST" })
         description?: string;
         price: number;
         image_url?: string;
+        image_ratio?: number | null;
         extra_images?: string[];
+        extra_image_ratios?: number[];
         category: string;
         sort_order?: number;
         is_available?: boolean;
@@ -164,7 +198,9 @@ export const saveMenuItem = createServerFn({ method: "POST" })
       description: data.item.description?.trim().slice(0, 500) ?? null,
       price: Number(data.item.price) || 0,
       image_url: data.item.image_url?.trim() || null,
+      image_ratio: data.item.image_ratio ?? null,
       extra_images: (data.item.extra_images ?? []).map((u) => u.trim()).filter(Boolean),
+      extra_image_ratios: data.item.extra_image_ratios ?? [],
       category: data.item.category?.trim().slice(0, 60) || "حلويات",
       sort_order: Number(data.item.sort_order) || 0,
       is_available: data.item.is_available ?? true,
@@ -174,12 +210,17 @@ export const saveMenuItem = createServerFn({ method: "POST" })
       : db.from("menu_items").insert(payload);
     let { error } = await q;
     if (error?.code === "PGRST204") {
-      // extra_images hasn't been migrated onto the live database yet — save the rest
-      // of the item rather than failing the whole save.
-      const { extra_images: _extraImages, ...withoutExtra } = payload;
+      // The new ratio/extra_images columns haven't been migrated onto the live
+      // database yet — save the rest of the item rather than failing the whole save.
+      const {
+        extra_images: _extraImages,
+        extra_image_ratios: _ratios,
+        image_ratio: _ratio,
+        ...rest
+      } = payload;
       q = data.item.id
-        ? db.from("menu_items").update(withoutExtra).eq("id", data.item.id)
-        : db.from("menu_items").insert(withoutExtra);
+        ? db.from("menu_items").update(rest).eq("id", data.item.id)
+        : db.from("menu_items").insert(rest);
       ({ error } = await q);
     }
     if (error) throw new Error(error.message);
@@ -215,7 +256,8 @@ export const uploadMenuImage = createServerFn({ method: "POST" })
       .upload(path, bytes, { contentType: data.contentType || "image/jpeg", upsert: false });
     if (error) throw new Error(error.message);
     const { data: pub } = db.storage.from("menu-photos").getPublicUrl(path);
-    return { url: pub.publicUrl };
+    const ratio = getJpegRatio(bytes);
+    return { url: pub.publicUrl, ratio };
   });
 
 const DEFAULT_STORY = {
@@ -225,7 +267,7 @@ const DEFAULT_STORY = {
     "من مطبخ صغير إلى مركز متكامل للحلويات، نختار أجود المكوّنات ونُزيّن كل طبق بعناية لتصل إليك قطعة تليق بفرحتك.",
 };
 
-export type Promotion = { id: string; image_url: string; sort_order: number };
+export type Promotion = { id: string; image_url: string; ratio: number | null; sort_order: number };
 
 export const getStorySection = createServerFn({ method: "GET" }).handler(async () => {
   const client = publicClient();
@@ -237,7 +279,7 @@ export const getStorySection = createServerFn({ method: "GET" }).handler(async (
       .maybeSingle(),
     client
       .from("promotions")
-      .select("id,image_url,sort_order")
+      .select("id,image_url,ratio,sort_order")
       .order("sort_order", { ascending: true }),
   ]);
   if (settings.error) throw new Error(settings.error.message);
@@ -268,7 +310,7 @@ export const saveStorySettings = createServerFn({ method: "POST" })
   });
 
 export const addPromotion = createServerFn({ method: "POST" })
-  .inputValidator((input: { phone: string; image_url: string }) => {
+  .inputValidator((input: { phone: string; image_url: string; ratio?: number | null }) => {
     if (!input.image_url?.trim()) throw new Error("رابط الصورة مطلوب");
     return input;
   })
@@ -281,9 +323,17 @@ export const addPromotion = createServerFn({ method: "POST" })
       .limit(1);
     if (lastError) throw new Error(lastError.message);
     const nextOrder = (last?.[0]?.sort_order ?? -1) + 1;
-    const { error } = await db
-      .from("promotions")
-      .insert({ image_url: data.image_url.trim(), sort_order: nextOrder });
+    const payload = {
+      image_url: data.image_url.trim(),
+      ratio: data.ratio ?? null,
+      sort_order: nextOrder,
+    };
+    let { error } = await db.from("promotions").insert(payload);
+    if (error?.code === "PGRST204") {
+      // The ratio column hasn't been migrated onto the live database yet.
+      const { ratio: _ratio, ...withoutRatio } = payload;
+      ({ error } = await db.from("promotions").insert(withoutRatio));
+    }
     if (error) throw new Error(error.message);
     return { ok: true };
   });
