@@ -113,7 +113,11 @@ function AdminPage() {
             <span className="text-ink">لوحة تحكم مركز سارة</span>
           </div>
           <div className="flex items-center gap-2">
-            <a href="/" className="rounded-full border border-border px-4 py-2 text-sm text-ink">
+            <a
+              href="/"
+              className="rounded-full px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-soft)]"
+              style={{ backgroundImage: "var(--gradient-pink)" }}
+            >
               الرجوع الى الموقع
             </a>
           </div>
