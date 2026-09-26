@@ -1,0 +1,163 @@
+import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  getMenu,
+  saveMenuItem,
+  deleteMenuItem,
+  uploadMenuImage,
+  type MenuItem,
+} from "@/lib/shop.functions";
+import { fileToCompressedBase64 } from "@/lib/image";
+import { MenuItemForm, type MenuItemDraft } from "./MenuItemForm";
+
+export function MenuPanel({ phone }: { phone: string }) {
+  const fetchMenu = useServerFn(getMenu);
+  const save = useServerFn(saveMenuItem);
+  const remove = useServerFn(deleteMenuItem);
+  const upload = useServerFn(uploadMenuImage);
+  const queryClient = useQueryClient();
+
+  const [items, setItems] = useState<MenuItem[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<MenuItem | "new" | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    try {
+      const rows = await fetchMenu();
+      setItems(rows);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تعذّر تحميل المنيو");
+    }
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const categories = [...new Set((items ?? []).map((i) => i.category))];
+
+  async function handleUploadImage(file: File) {
+    const { base64, contentType } = await fileToCompressedBase64(file);
+    const res = await upload({
+      data: { phone, filename: file.name, contentType, dataBase64: base64 },
+    });
+    return res.url;
+  }
+
+  async function handleSubmit(draft: MenuItemDraft) {
+    setBusy(true);
+    try {
+      await save({
+        data: {
+          phone,
+          item: {
+            ...(draft.id ? { id: draft.id } : {}),
+            name: draft.name,
+            description: draft.description,
+            price: Number(draft.price) || 0,
+            image_url: draft.image_url,
+            category: draft.category || "حلويات",
+            sort_order: Number(draft.sort_order) || 0,
+            is_available: draft.is_available,
+          },
+        },
+      });
+      setEditing(null);
+      await load();
+      queryClient.invalidateQueries({ queryKey: ["menu"] });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "تعذّر الحفظ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("حذف هذا الصنف نهائيًا؟")) return;
+    try {
+      await remove({ data: { phone, id } });
+      await load();
+      queryClient.invalidateQueries({ queryKey: ["menu"] });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "تعذّر الحذف");
+    }
+  }
+
+  if (error) return <p className="py-10 text-center text-destructive">{error}</p>;
+  if (!items) return <p className="py-10 text-center text-muted-foreground">جارِ التحميل...</p>;
+
+  return (
+    <div className="space-y-5">
+      {editing && (
+        <MenuItemForm
+          key={editing === "new" ? "new" : editing.id}
+          initial={editing === "new" ? null : editing}
+          categories={categories}
+          busy={busy}
+          onCancel={() => setEditing(null)}
+          onSubmit={handleSubmit}
+          onUploadImage={handleUploadImage}
+        />
+      )}
+
+      {!editing && (
+        <button
+          onClick={() => setEditing("new")}
+          className="rounded-full px-6 py-2.5 text-sm font-medium text-primary-foreground"
+          style={{ backgroundImage: "var(--gradient-pink)" }}
+        >
+          + إضافة صنف جديد
+        </button>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {items.map((item) => (
+          <article
+            key={item.id}
+            className="overflow-hidden rounded-3xl bg-card shadow-[var(--shadow-card)]"
+          >
+            {item.image_url ? (
+              <img src={item.image_url} alt={item.name} className="h-36 w-full object-cover" />
+            ) : (
+              <div className="flex h-36 w-full items-center justify-center bg-muted text-sm text-muted-foreground">
+                بدون صورة
+              </div>
+            )}
+            <div className="p-4">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-ink">{item.name}</h4>
+                {!item.is_available && (
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                    مخفي
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">{item.category}</p>
+              <p className="mt-1 font-bold text-primary">{Number(item.price).toFixed(2)} د.ل</p>
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={() => setEditing(item)}
+                  className="flex-1 rounded-full border border-primary px-3 py-1.5 text-sm text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+                >
+                  تعديل
+                </button>
+                <button
+                  onClick={() => handleDelete(item.id)}
+                  className="rounded-full border border-destructive px-3 py-1.5 text-sm text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground"
+                >
+                  حذف
+                </button>
+              </div>
+            </div>
+          </article>
+        ))}
+        {items.length === 0 && (
+          <p className="col-span-full py-10 text-center text-muted-foreground">لا توجد أصناف بعد</p>
+        )}
+      </div>
+    </div>
+  );
+}
