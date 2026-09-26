@@ -17,7 +17,20 @@ export type MenuItem = {
   category: string;
   sort_order: number;
   is_available: boolean;
+  // null = stock not tracked (unlimited); 0 = sold out
+  stock: number | null;
 };
+
+// PostgREST error codes for "that column doesn't exist (yet)". Lets the site keep working in
+// the window between shipping this code and running the matching database migration.
+function isMissingColumn(error: { code?: string; message?: string } | null) {
+  if (!error) return false;
+  return (
+    error.code === "42703" ||
+    error.code === "PGRST204" ||
+    /does not exist|Could not find the/.test(error.message ?? "")
+  );
+}
 
 // Measures a photo's real shape once, at upload time, using a library that's already
 // battle-tested against real-world encoder output (my own first attempt at this used a
@@ -76,15 +89,30 @@ async function adminClient(phone: string) {
   return supabaseAdmin;
 }
 
+const MENU_COLUMN_SETS = [
+  "id,name,description,price,image_url,image_ratio,extra_images,extra_image_ratios,category,sort_order,is_available,stock",
+  "id,name,description,price,image_url,image_ratio,extra_images,extra_image_ratios,category,sort_order,is_available",
+  "id,name,description,price,image_url,category,sort_order,is_available",
+];
+
 export const getMenu = createServerFn({ method: "GET" }).handler(async () => {
-  const { data, error } = await publicClient()
-    .from("menu_items")
-    .select(
-      "id,name,description,price,image_url,image_ratio,extra_images,extra_image_ratios,category,sort_order,is_available",
-    )
-    .order("sort_order", { ascending: true });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as MenuItem[];
+  const client = publicClient();
+  for (const columns of MENU_COLUMN_SETS) {
+    const { data, error } = await client
+      .from("menu_items")
+      .select(columns)
+      .order("sort_order", { ascending: true });
+    if (isMissingColumn(error)) continue;
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as unknown as Partial<MenuItem>[]).map((row) => ({
+      ...row,
+      image_ratio: row.image_ratio ?? null,
+      extra_images: row.extra_images ?? [],
+      extra_image_ratios: row.extra_image_ratios ?? [],
+      stock: row.stock ?? null,
+    })) as MenuItem[];
+  }
+  throw new Error("تعذّر تحميل المنيو");
 });
 
 export const createOrder = createServerFn({ method: "POST" })
@@ -95,7 +123,7 @@ export const createOrder = createServerFn({ method: "POST" })
       address: string;
       notes?: string;
       location_url?: string;
-      items: { name: string; qty: number; price: number }[];
+      items: { id?: string; name: string; qty: number; price: number }[];
       total: number;
     }) => input,
   )
@@ -120,6 +148,32 @@ export const createOrder = createServerFn({ method: "POST" })
     }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // Deduct stock first, atomically: if any item doesn't have enough, nothing is deducted
+    // and the order is refused before WhatsApp ever opens.
+    const stockItems = data.items
+      .filter((i) => typeof i.id === "string" && i.id.length > 0)
+      .map((i) => ({ id: i.id, qty: Math.max(0, Math.floor(Number(i.qty) || 0)) }));
+    if (stockItems.length > 0) {
+      const { error: stockError } = await supabaseAdmin.rpc("reserve_stock", {
+        p_items: stockItems,
+      });
+      if (stockError) {
+        const outOfStock = /OUT_OF_STOCK:(.+)$/.exec(stockError.message);
+        if (outOfStock) {
+          throw new Error(
+            `الكمية المتوفرة من "${outOfStock[1]!.trim()}" لا تكفي، يرجى تعديل السلة`,
+          );
+        }
+        if (stockError.message.includes("ITEM_NOT_FOUND")) {
+          throw new Error("أحد الأصناف في السلة لم يعد متوفرًا، يرجى تعديل السلة");
+        }
+        // PGRST202 = function not found: the stock migration hasn't been run yet.
+        // Don't block real orders over it — just skip stock tracking until it exists.
+        if (stockError.code !== "PGRST202") throw new Error(stockError.message);
+      }
+    }
+
     const payload: Database["public"]["Tables"]["orders"]["Insert"] = {
       customer_name: name.slice(0, 120),
       phone: phone.slice(0, 40),
@@ -178,6 +232,7 @@ export const saveMenuItem = createServerFn({ method: "POST" })
         category: string;
         sort_order?: number;
         is_available?: boolean;
+        stock?: number | null;
       };
     }) => {
       if (!input.item?.name?.trim()) throw new Error("اسم الصنف مطلوب");
@@ -197,18 +252,23 @@ export const saveMenuItem = createServerFn({ method: "POST" })
       category: data.item.category?.trim().slice(0, 60) || "حلويات",
       sort_order: Number(data.item.sort_order) || 0,
       is_available: data.item.is_available ?? true,
+      stock:
+        data.item.stock === null || data.item.stock === undefined
+          ? null
+          : Math.max(0, Math.floor(Number(data.item.stock) || 0)),
     };
     let q = data.item.id
       ? db.from("menu_items").update(payload).eq("id", data.item.id)
       : db.from("menu_items").insert(payload);
     let { error } = await q;
-    if (error?.code === "PGRST204") {
-      // The new ratio/extra_images columns haven't been migrated onto the live
-      // database yet — save the rest of the item rather than failing the whole save.
+    if (isMissingColumn(error)) {
+      // Newer columns haven't been migrated onto the live database yet — save the rest
+      // of the item rather than failing the whole save.
       const {
         extra_images: _extraImages,
         extra_image_ratios: _ratios,
         image_ratio: _ratio,
+        stock: _stock,
         ...rest
       } = payload;
       q = data.item.id
@@ -262,14 +322,26 @@ const DEFAULT_STORY = {
 
 export type Promotion = { id: string; image_url: string; ratio: number | null; sort_order: number };
 
+async function loadSettings(client: ReturnType<typeof publicClient>) {
+  const full = await client
+    .from("site_settings")
+    .select("story_label,story_title,story_text,hero_image_url")
+    .eq("id", 1)
+    .maybeSingle();
+  if (!isMissingColumn(full.error)) return full;
+  // hero_image_url column not migrated yet
+  const basic = await client
+    .from("site_settings")
+    .select("story_label,story_title,story_text")
+    .eq("id", 1)
+    .maybeSingle();
+  return { ...basic, data: basic.data ? { ...basic.data, hero_image_url: null } : null };
+}
+
 export const getStorySection = createServerFn({ method: "GET" }).handler(async () => {
   const client = publicClient();
   const [settings, promos] = await Promise.all([
-    client
-      .from("site_settings")
-      .select("story_label,story_title,story_text")
-      .eq("id", 1)
-      .maybeSingle(),
+    loadSettings(client),
     client
       .from("promotions")
       .select("id,image_url,ratio,sort_order")
@@ -281,6 +353,7 @@ export const getStorySection = createServerFn({ method: "GET" }).handler(async (
     story_label: settings.data?.story_label ?? DEFAULT_STORY.story_label,
     story_title: settings.data?.story_title ?? DEFAULT_STORY.story_title,
     story_text: settings.data?.story_text ?? DEFAULT_STORY.story_text,
+    hero_image_url: (settings.data?.hero_image_url as string | null | undefined) ?? null,
     images: (promos.data ?? []) as Promotion[],
   };
 });
@@ -336,6 +409,20 @@ export const deletePromotion = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const db = await adminClient(data.phone);
     const { error } = await db.from("promotions").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const saveHeroImage = createServerFn({ method: "POST" })
+  .inputValidator((input: { phone: string; hero_image_url: string | null }) => input)
+  .handler(async ({ data }) => {
+    const db = await adminClient(data.phone);
+    const { error } = await db
+      .from("site_settings")
+      .upsert({ id: 1, hero_image_url: data.hero_image_url?.trim() || null });
+    if (isMissingColumn(error)) {
+      throw new Error("يرجى تشغيل تحديث قاعدة البيانات أولاً (من محادثة Lovable)");
+    }
     if (error) throw new Error(error.message);
     return { ok: true };
   });
