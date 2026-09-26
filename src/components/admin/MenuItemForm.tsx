@@ -247,6 +247,13 @@ export function MenuItemForm({
               disabled={uploading}
             />
           </label>
+          {draft.image_url && (
+            <p className={`text-xs ${draft.image_ratio ? "text-primary" : "text-destructive"}`}>
+              {draft.image_ratio
+                ? `✓ تم اكتشاف شكل الصورة (${draft.image_ratio > 1 ? "عمودية" : "أفقية"})`
+                : "⚠ تعذّر اكتشاف شكل الصورة تلقائيًا لهذه الصورة"}
+            </p>
+          )}
         </div>
       </div>
 
