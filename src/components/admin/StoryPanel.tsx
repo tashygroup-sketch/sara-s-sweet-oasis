@@ -8,6 +8,7 @@ import {
   deletePromotion,
   uploadMenuImage,
   saveHeroImage,
+  saveHeroText,
 } from "@/lib/shop.functions";
 import { fileToCompressedBase64 } from "@/lib/image";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -22,6 +23,7 @@ export function StoryPanel({ phone }: { phone: string }) {
   const removeImage = useServerFn(deletePromotion);
   const upload = useServerFn(uploadMenuImage);
   const setHero = useServerFn(saveHeroImage);
+  const saveHeroCopy = useServerFn(saveHeroText);
   const queryClient = useQueryClient();
 
   const [data, setData] = useState<StoryData | null>(null);
@@ -35,6 +37,9 @@ export function StoryPanel({ phone }: { phone: string }) {
   const [heroBusy, setHeroBusy] = useState(false);
   const [heroError, setHeroError] = useState<string | null>(null);
   const [removeHeroOpen, setRemoveHeroOpen] = useState(false);
+  const [heroForm, setHeroForm] = useState({ hero_title: "", hero_subtitle: "" });
+  const [heroTextBusy, setHeroTextBusy] = useState(false);
+  const [heroTextSaved, setHeroTextSaved] = useState(false);
 
   async function load() {
     try {
@@ -45,6 +50,7 @@ export function StoryPanel({ phone }: { phone: string }) {
         story_title: res.story_title,
         story_text: res.story_text,
       });
+      setHeroForm({ hero_title: res.hero_title, hero_subtitle: res.hero_subtitle });
     } catch (err) {
       setError(err instanceof Error ? err.message : "تعذّر تحميل محتوى القسم");
     }
@@ -142,6 +148,21 @@ export function StoryPanel({ phone }: { phone: string }) {
     }
   }
 
+  async function handleSaveHeroText(e: React.FormEvent) {
+    e.preventDefault();
+    setHeroTextBusy(true);
+    setHeroTextSaved(false);
+    try {
+      await saveHeroCopy({ data: { phone, ...heroForm } });
+      setHeroTextSaved(true);
+      refreshPublicStory();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "تعذّر الحفظ");
+    } finally {
+      setHeroTextBusy(false);
+    }
+  }
+
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   async function confirmDelete() {
@@ -215,6 +236,40 @@ export function StoryPanel({ phone }: { phone: string }) {
         </div>
         {heroError && <p className="mt-2 text-sm text-destructive">{heroError}</p>}
       </div>
+
+      <form
+        onSubmit={handleSaveHeroText}
+        className="space-y-3 rounded-3xl bg-card p-5 shadow-[var(--shadow-card)]"
+      >
+        <label className="block">
+          <span className="mb-1 block text-sm text-muted-foreground">عنوان الواجهة</span>
+          <input
+            value={heroForm.hero_title}
+            onChange={(e) => setHeroForm((f) => ({ ...f, hero_title: e.target.value }))}
+            className="w-full rounded-2xl border border-border bg-background px-4 py-3 outline-none focus:border-primary"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm text-muted-foreground">النص تحت العنوان</span>
+          <textarea
+            rows={3}
+            value={heroForm.hero_subtitle}
+            onChange={(e) => setHeroForm((f) => ({ ...f, hero_subtitle: e.target.value }))}
+            className="w-full rounded-2xl border border-border bg-background px-4 py-3 outline-none focus:border-primary"
+          />
+        </label>
+        <div className="flex items-center gap-3">
+          <button
+            type="submit"
+            disabled={heroTextBusy}
+            className="rounded-full px-6 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-60"
+            style={{ backgroundImage: "var(--gradient-pink)" }}
+          >
+            {heroTextBusy ? "جارِ الحفظ..." : "حفظ النص"}
+          </button>
+          {heroTextSaved && <span className="text-sm text-primary">✓ تم الحفظ</span>}
+        </div>
+      </form>
 
       <form
         onSubmit={handleSave}
