@@ -128,6 +128,8 @@ export type Database = {
       site_settings: {
         Row: {
           hero_image_url: string | null;
+          hero_subtitle: string | null;
+          hero_title: string | null;
           id: number;
           story_label: string;
           story_text: string;
@@ -136,6 +138,8 @@ export type Database = {
         };
         Insert: {
           hero_image_url?: string | null;
+          hero_subtitle?: string | null;
+          hero_title?: string | null;
           id?: number;
           story_label?: string;
           story_text?: string;
@@ -144,6 +148,8 @@ export type Database = {
         };
         Update: {
           hero_image_url?: string | null;
+          hero_subtitle?: string | null;
+          hero_title?: string | null;
           id?: number;
           story_label?: string;
           story_text?: string;
