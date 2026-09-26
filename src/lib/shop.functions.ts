@@ -94,7 +94,6 @@ export const createOrder = createServerFn({ method: "POST" })
         phone: data.phone.trim().slice(0, 40),
         address: data.address.trim().slice(0, 300),
         notes: data.notes?.trim().slice(0, 600) ?? null,
-        location_url: data.location_url?.trim().slice(0, 300) ?? null,
         items: data.items ?? [],
         total: data.total ?? 0,
       })
