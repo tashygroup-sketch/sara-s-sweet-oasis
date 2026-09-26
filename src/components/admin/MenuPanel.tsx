@@ -10,6 +10,7 @@ import {
 } from "@/lib/shop.functions";
 import { fileToCompressedBase64 } from "@/lib/image";
 import { MenuItemForm, type MenuItemDraft } from "./MenuItemForm";
+import { Reveal } from "@/components/Reveal";
 
 export function MenuPanel({ phone }: { phone: string }) {
   const fetchMenu = useServerFn(getMenu);
@@ -65,6 +66,7 @@ export function MenuPanel({ phone }: { phone: string }) {
             description: draft.description,
             price: Number(draft.price) || 0,
             image_url: draft.image_url,
+            extra_images: draft.extra_images,
             category: draft.category || "حلويات",
             sort_order: Number(draft.sort_order) || 0,
           },
@@ -118,24 +120,26 @@ export function MenuPanel({ phone }: { phone: string }) {
       )}
 
       {!editing && categories.length > 1 && (
-        <div>
-          <p className="mb-2 text-xs tracking-[0.25em] text-primary">الرفوف</p>
-          <div className="scrollbar-none -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() =>
-                  document
-                    .getElementById(`admin-cat-${cat.replace(/\s+/g, "-")}`)
-                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
-                }
-                className="shrink-0 rounded-full border border-primary/40 bg-card px-4 py-1.5 text-sm text-ink shadow-[var(--shadow-card)] transition-colors hover:bg-primary hover:text-primary-foreground"
-              >
-                {cat}
-              </button>
-            ))}
+        <Reveal>
+          <div>
+            <p className="mb-2 text-xs tracking-[0.25em] text-primary">الرفوف</p>
+            <div className="scrollbar-none -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() =>
+                    document
+                      .getElementById(`admin-cat-${cat.replace(/\s+/g, "-")}`)
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                  }
+                  className="shrink-0 rounded-full border border-primary/40 bg-card px-4 py-1.5 text-sm text-ink shadow-[var(--shadow-card)] transition-colors hover:bg-primary hover:text-primary-foreground"
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        </Reveal>
       )}
 
       {categories.map((cat) => (
@@ -165,7 +169,7 @@ export function MenuPanel({ phone }: { phone: string }) {
                       <img
                         src={item.image_url}
                         alt={item.name}
-                        className="h-36 w-full object-cover"
+                        className="max-h-56 w-full bg-muted object-contain"
                       />
                     ) : (
                       <div className="flex h-36 w-full items-center justify-center bg-muted text-sm text-muted-foreground">

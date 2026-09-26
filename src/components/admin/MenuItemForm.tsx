@@ -9,6 +9,7 @@ export type MenuItemDraft = {
   category: string;
   sort_order: string;
   image_url: string;
+  extra_images: string[];
 };
 
 const NEW_CATEGORY = "__new__";
@@ -20,6 +21,7 @@ const empty: MenuItemDraft = {
   category: "",
   sort_order: "0",
   image_url: "",
+  extra_images: [],
 };
 
 export function MenuItemForm({
@@ -49,6 +51,7 @@ export function MenuItemForm({
           category: initial.category,
           sort_order: String(initial.sort_order),
           image_url: initial.image_url ?? "",
+          extra_images: initial.extra_images ?? [],
         }
       : empty,
   );
@@ -57,7 +60,12 @@ export function MenuItemForm({
   const isNewItem = !initial;
   const [addingCategory, setAddingCategory] = useState(categories.length === 0);
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [uploading, setUploading] = useState(false);
+  // Keep our own copy of the dropdown's options so a category typed in this same
+  // session shows up as selected immediately, instead of falling back to the
+  // placeholder because it isn't in the (now-stale) categories prop yet.
+  const [availableCategories, setAvailableCategories] = useState(categories);
+  const [uploadingMain, setUploadingMain] = useState(false);
+  const [uploadingExtra, setUploadingExtra] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   function handleCategoryChange(value: string) {
@@ -75,6 +83,7 @@ export function MenuItemForm({
   function confirmNewCategory() {
     const name = newCategoryName.trim();
     if (!name) return;
+    setAvailableCategories((prev) => (prev.includes(name) ? prev : [...prev, name]));
     setDraft((d) => ({
       ...d,
       category: name,
@@ -84,11 +93,11 @@ export function MenuItemForm({
     setNewCategoryName("");
   }
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleMainFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    setUploading(true);
+    setUploadingMain(true);
     setUploadError(null);
     try {
       const url = await onUploadImage(file);
@@ -96,9 +105,31 @@ export function MenuItemForm({
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "تعذّر رفع الصورة");
     } finally {
-      setUploading(false);
+      setUploadingMain(false);
     }
   }
+
+  async function handleExtraFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploadingExtra(true);
+    setUploadError(null);
+    try {
+      const url = await onUploadImage(file);
+      setDraft((d) => ({ ...d, extra_images: [...d.extra_images, url] }));
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "تعذّر رفع الصورة");
+    } finally {
+      setUploadingExtra(false);
+    }
+  }
+
+  function removeExtraImage(url: string) {
+    setDraft((d) => ({ ...d, extra_images: d.extra_images.filter((u) => u !== url) }));
+  }
+
+  const uploading = uploadingMain || uploadingExtra;
 
   return (
     <form
@@ -153,7 +184,7 @@ export function MenuItemForm({
               <option value="" disabled>
                 اختر تصنيفًا
               </option>
-              {categories.map((c) => (
+              {availableCategories.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
@@ -192,18 +223,49 @@ export function MenuItemForm({
         <div className="min-w-[220px] flex-1 space-y-2">
           <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-primary">
             <span className="rounded-full border border-primary px-3 py-1.5">
-              {uploading ? "جارِ الرفع..." : "📷 اختيار صورة من المعرض"}
+              {uploadingMain ? "جارِ الرفع..." : "📷 اختيار صورة من المعرض"}
             </span>
             <input
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={handleFile}
+              onChange={handleMainFile}
               disabled={uploading}
             />
           </label>
-          {uploadError && <p className="text-sm text-destructive">{uploadError}</p>}
         </div>
+      </div>
+
+      <div>
+        <span className="mb-2 block text-sm text-muted-foreground">
+          صور إضافية لنفس الصنف (اختياري)
+        </span>
+        <div className="scrollbar-none flex gap-2 overflow-x-auto pb-1">
+          {draft.extra_images.map((url) => (
+            <div key={url} className="relative shrink-0">
+              <img src={url} alt="" className="h-16 w-16 rounded-xl object-cover" />
+              <button
+                type="button"
+                onClick={() => removeExtraImage(url)}
+                className="absolute -top-1.5 -left-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink/70 text-xs text-white"
+                aria-label="إزالة الصورة"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <label className="inline-flex h-16 w-16 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-dashed border-primary/50 text-xs text-primary">
+            {uploadingExtra ? "..." : "+ صورة"}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleExtraFile}
+              disabled={uploading}
+            />
+          </label>
+        </div>
+        {uploadError && <p className="mt-1 text-sm text-destructive">{uploadError}</p>}
       </div>
 
       <div className="flex gap-2 pt-1">
