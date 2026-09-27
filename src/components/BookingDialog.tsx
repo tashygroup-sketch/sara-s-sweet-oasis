@@ -90,7 +90,7 @@ export function BookingDialog({ open, onClose }: { open: boolean; onClose: () =>
       });
 
       if (res.isAdmin) {
-        sessionStorage.setItem("sara-admin-phone", form.phone);
+        localStorage.setItem("sara-admin-phone", form.phone);
         navigate({ to: "/admin" });
         return;
       }

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { listOrders } from "@/lib/shop.functions";
@@ -17,89 +17,36 @@ export const Route = createFileRoute("/admin")({
 
 function AdminPage() {
   // listOrders doubles as the server-side admin check: it throws unless the phone is the
-  // admin code, so the client never needs to know that code itself.
+  // admin code, so the client never needs to know that code itself. The code is entered
+  // once in the booking form's phone field and stored in localStorage, so anyone who has
+  // it gets in from any browser — no separate gate page here.
   const verify = useServerFn(listOrders);
+  const navigate = useNavigate();
 
   const [phone, setPhone] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
   const [tab, setTab] = useState<"menu" | "story">("menu");
-  const [gateInput, setGateInput] = useState("");
-  const [gateError, setGateError] = useState<string | null>(null);
-  const [gateBusy, setGateBusy] = useState(false);
 
   useEffect(() => {
-    const stored = typeof window !== "undefined" ? sessionStorage.getItem(STORAGE_KEY) : null;
+    const stored = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
     if (!stored) {
-      setChecking(false);
+      navigate({ to: "/", replace: true });
       return;
     }
     verify({ data: { phone: stored } })
       .then(() => setPhone(stored))
-      .catch(() => sessionStorage.removeItem(STORAGE_KEY))
+      .catch(() => {
+        localStorage.removeItem(STORAGE_KEY);
+        navigate({ to: "/", replace: true });
+      })
       .finally(() => setChecking(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleGate(e: React.FormEvent) {
-    e.preventDefault();
-    setGateBusy(true);
-    setGateError(null);
-    try {
-      await verify({ data: { phone: gateInput } });
-      sessionStorage.setItem(STORAGE_KEY, gateInput);
-      setPhone(gateInput);
-    } catch {
-      setGateError("رقم غير صحيح");
-    } finally {
-      setGateBusy(false);
-    }
-  }
-
-  if (checking) {
+  if (checking || !phone) {
     return (
       <div className="flex min-h-screen items-center justify-center text-muted-foreground">
         جارِ التحقق...
-      </div>
-    );
-  }
-
-  if (!phone) {
-    return (
-      <div
-        className="flex min-h-screen items-center justify-center px-4"
-        style={{ background: "var(--gradient-petal)" }}
-      >
-        <form
-          onSubmit={handleGate}
-          className="w-full max-w-sm rounded-3xl bg-card p-8 text-center shadow-[var(--shadow-card)]"
-        >
-          <img src={logoAsset.url} alt="" className="mx-auto h-16 w-16 object-contain" />
-          <h1 className="mt-4 text-xl text-ink">دخول لوحة التحكم</h1>
-          <input
-            type="tel"
-            inputMode="tel"
-            dir="ltr"
-            value={gateInput}
-            onChange={(e) => setGateInput(e.target.value)}
-            placeholder="رقم الهاتف"
-            className="mt-5 w-full rounded-2xl border border-border bg-background px-4 py-3 text-center outline-none focus:border-primary"
-          />
-          {gateError && <p className="mt-2 text-sm text-destructive">{gateError}</p>}
-          <button
-            type="submit"
-            disabled={gateBusy}
-            className="mt-5 w-full rounded-full px-6 py-3 font-medium text-primary-foreground disabled:opacity-60"
-            style={{ backgroundImage: "var(--gradient-pink)" }}
-          >
-            {gateBusy ? "جارِ التحقق..." : "دخول"}
-          </button>
-          <a
-            href="/"
-            className="mt-4 inline-block text-sm text-muted-foreground hover:text-primary"
-          >
-            العودة للموقع
-          </a>
-        </form>
       </div>
     );
   }
@@ -113,6 +60,15 @@ function AdminPage() {
             <span className="text-ink">لوحة تحكم مركز سارة</span>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                localStorage.removeItem(STORAGE_KEY);
+                navigate({ to: "/", replace: true });
+              }}
+              className="rounded-full border border-border px-4 py-2 text-sm text-muted-foreground hover:text-primary"
+            >
+              خروج
+            </button>
             <a
               href="/"
               className="rounded-full px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-soft)]"
