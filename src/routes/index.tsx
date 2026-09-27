@@ -226,7 +226,9 @@ function Home() {
         </Reveal>
         {story.images.length > 0 && (
           <Reveal delay={280}>
-            <div className="relative left-1/2 right-1/2 -mx-[50vw] mt-12 w-screen md:static md:mx-auto md:w-full md:max-w-xl">
+            {/* Full-bleed breakout: margin math (not left/right positioning) so it centers
+                correctly under dir="rtl" too — left/right flip meaning in RTL. */}
+            <div className="mx-[calc(50%-50vw)] mt-12 w-screen md:mx-auto md:w-full md:max-w-xl">
               <Carousel
                 images={story.images.map((img) => ({ url: img.image_url, ratio: img.ratio }))}
               />
